@@ -1,0 +1,23 @@
+body {
+    background-color: #191A1B;
+    color: #ffffff;
+    font-family: monospace;
+    font-size: 18px;
+    line-height: 1.5em;
+    margin: 100px auto 0;
+    max-width: 640px;
+    padding: 24px 32px;
+}
+
+a {
+    color: #707CD7;
+    text-decoration: none;
+}
+
+h1 {
+    font-weight: normal;
+}
+
+p {
+    line-height: 1.5em;
+}
