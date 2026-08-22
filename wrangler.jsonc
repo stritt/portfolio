@@ -1,0 +1,10 @@
+{
+  "name": "burcs-dev",
+  "account_id": "3f3fc3f3d329d967573c0e8acc8525e1",
+  "main": "worker.js",
+  "compatibility_date": "2026-02-12",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS"
+  }
+}

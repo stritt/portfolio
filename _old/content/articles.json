@@ -1,0 +1,34 @@
+[
+  {
+    "slug": "overworking-your-workers",
+    "title": "Overworking your workers",
+    "date": "2026-02-13",
+    "readTime": "8 min read",
+    "summary": "A practical pattern for splitting oversized Worker dependencies into service-bound RPC layers without rewriting your app.",
+    "path": "content/overworking-your-workers.md"
+  },
+  {
+    "slug": "the-harness-is-the-product",
+    "title": "The harness is the product",
+    "date": "2026-02-03",
+    "readTime": "7 min read",
+    "summary": "Why the interface around a model determines reliability, speed, and user trust more than model selection alone.",
+    "path": "content/the-harness-is-the-product.md"
+  },
+  {
+    "slug": "the-renaissance-of-sofware-development",
+    "title": "The Renaissance of Sofware Development",
+    "date": "2026-01-19",
+    "readTime": "6 min read",
+    "summary": "How AI raises both the floor and ceiling for builders, shifting software from pure implementation to faster creative execution.",
+    "path": "content/the-renaissance-of-sofware-development.md"
+  },
+  {
+    "slug": "how-id-build-a-platform-in-2026",
+    "title": "How I'd build a platform in 2026",
+    "date": "2026-01-14",
+    "readTime": "9 min read",
+    "summary": "A straightforward blueprint for building secure, scalable multi-tenant platforms with modern infra and sane defaults.",
+    "path": "content/how-id-build-a-platform-in-2026.md"
+  }
+]

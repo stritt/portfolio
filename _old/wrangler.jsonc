@@ -1,0 +1,17 @@
+{
+  "name": "burcs-dev",
+  "account_id": "3f3fc3f3d329d967573c0e8acc8525e1",
+  "main": "worker.js",
+  "compatibility_date": "2026-02-12",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "HELLO_DB",
+      "database_name": "burcs-hello",
+      "database_id": "4a97afb9-7414-4582-b231-339921c174ea"
+    }
+  ]
+}

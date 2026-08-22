@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="burcs.dev - a personal blog for minimal, text-first writing."
+    />
+    <title>burcs.dev</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="site">
+      <div class="bento">
+        <!-- Hero -->
+        <section class="card card--hero">
+          <img
+            class="avatar"
+            src="me.jpeg"
+            alt="Profile avatar"
+            loading="lazy"
+            onerror="this.src='https://images.unsplash.com/photo-1502685104226-ee32379fefbe?auto=format&fit=crop&w=220&q=60';"
+          />
+          <h1>Brandon</h1>
+          <p class="hero-intro">Product at Cloudflare. Focusing on DevEx, design, and making complex systems feel obvious. Previously founded Outerbase.</p>
+          <nav class="hero-links">
+            <a href="https://x.com/burcs" target="_blank" rel="noreferrer" aria-label="X / Twitter">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            </a>
+            <a href="https://github.com/stritt" target="_blank" rel="noreferrer" aria-label="GitHub">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            </a>
+            <button class="hero-link-btn" type="button" data-open-hello-modal aria-label="Say Hello">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </button>
+          </nav>
+        </section>
+
+        <!-- Feed items injected here by JS directly into .bento -->
+      </div>
+    </main>
+
+    <div class="hello-modal-backdrop" data-hello-modal-backdrop hidden>
+      <div class="hello-modal" role="dialog" aria-modal="true" aria-labelledby="hello-modal-title">
+        <div class="hello-modal-head">
+          <h2 id="hello-modal-title">Say Hello</h2>
+          <button type="button" class="hello-modal-close" data-close-hello-modal aria-label="Close modal">
+            Close
+          </button>
+        </div>
+
+        <div class="hello-modal-body">
+          <label class="hello-label" for="hello-comment">Leave a comment</label>
+          <input
+            id="hello-website"
+            class="hello-honeypot"
+            type="text"
+            name="website"
+            autocomplete="off"
+            tabindex="-1"
+            aria-hidden="true"
+          />
+          <textarea
+            id="hello-comment"
+            class="hello-textarea"
+            rows="5"
+            maxlength="2000"
+            placeholder="Say something..."
+          ></textarea>
+          <button type="button" class="hello-action" data-submit-comment>Send comment</button>
+        </div>
+
+        <p class="subtle" data-hello-status></p>
+      </div>
+    </div>
+
+    <script src="blog.js" defer></script>
+  </body>
+</html>
