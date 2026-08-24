@@ -6,5 +6,19 @@
   "assets": {
     "directory": ".",
     "binding": "ASSETS"
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "COMMENTS",
+        "class_name": "Comments"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Comments"]
+    }
+  ]
 }

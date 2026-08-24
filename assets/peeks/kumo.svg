@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320">
+  <rect width="480" height="320" rx="8" fill="#0f2418"/>
+  <rect x="14" y="14" width="452" height="292" rx="4" fill="none" stroke="#7fe0a8" stroke-opacity="0.35" stroke-dasharray="6 6"/>
+  <text x="240" y="152" fill="#7fe0a8" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-size="22" text-anchor="middle">Kumo design system</text>
+  <text x="240" y="186" fill="#7fe0a8" fill-opacity="0.55" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-size="14" text-anchor="middle">placeholder — swap me</text>
+</svg>

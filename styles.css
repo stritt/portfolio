@@ -38,7 +38,8 @@
   --ink-faint: #75736c;
   --biro: #2242c8;
   --biro-wash: #eaeefc;
-  --rule: #e4e2dc;
+  --rule: #edece7;
+  --grain-opacity: 0.05;
   --body: "Atkinson Hyperlegible", system-ui, sans-serif;
   --hand: "Biro Script", cursive;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -51,7 +52,8 @@
     --ink-faint: #93918a;
     --biro: #8fa3ff;
     --biro-wash: #232a45;
-    --rule: #32332f;
+    --rule: #292a2d;
+    --grain-opacity: 0.08;
   }
 }
 
@@ -73,16 +75,75 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The frame — vertical rules bounding the page, George-style, but centered */
+/* Paper grain — a fine static noise over everything */
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The frame — vertical rules bounding the page, fading out at both ends */
 
 .frame {
+  position: relative;
   max-width: 44rem;
   min-height: 100vh;
   margin: 0 auto;
-  border-left: 1px solid var(--rule);
-  border-right: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
+}
+
+.frame::before,
+.frame::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--rule) 7rem,
+    var(--rule) calc(100% - 7rem),
+    transparent
+  );
+}
+
+.frame::before {
+  left: 0;
+}
+
+.frame::after {
+  right: 0;
+}
+
+/* Scroll hint — the page fades at the bottom edge until you reach the end */
+
+.scroll-fade {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7rem;
+  z-index: 30;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--paper) 92%, transparent)
+  );
+  opacity: 1;
+  transition: opacity 300ms ease;
+}
+
+.scroll-fade.is-done {
+  opacity: 0;
 }
 
 ::selection {
@@ -130,7 +191,7 @@ a:focus-visible {
 }
 
 .name {
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.3;
 }
 
@@ -143,8 +204,18 @@ a:focus-visible {
 .elsewhere {
   margin-left: auto;
   display: flex;
-  gap: 0.9rem;
-  font-size: 0.85rem;
+  align-items: center;
+  gap: 1rem;
+}
+
+.elsewhere a {
+  display: flex;
+  color: var(--ink-faint);
+  transition: color 120ms ease;
+}
+
+.elsewhere a:hover {
+  color: var(--ink);
 }
 
 /* Article */
@@ -254,19 +325,198 @@ article hr::after {
   letter-spacing: 0.6em;
 }
 
-/* Colophon */
+/* Peeks — hover a marked phrase, an image floats up by the cursor */
 
-.colophon {
-  padding: 1.75rem 2.5rem 2.25rem;
+.peek {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: color-mix(in srgb, var(--ink-faint) 65%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  cursor: default;
+  transition: background-color 120ms ease, text-decoration-color 120ms ease;
+}
+
+/* A peek can also be a real link — same quiet look, pointer cursor */
+a.peek {
+  cursor: pointer;
+}
+
+.peek:hover {
+  background: var(--biro-wash);
+  text-decoration-color: var(--biro);
+}
+
+.peek-card {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(300px, 40vw);
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0;
+  scale: 0.94;
+  transition: opacity 160ms ease, scale 160ms ease;
+}
+
+.peek-card.is-visible {
+  opacity: 1;
+  scale: 1;
+}
+
+.peek-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+/* Comments */
+
+.comments {
+  padding: 1.75rem 2.5rem 2rem;
   border-top: 1px solid var(--rule);
 }
 
-.signoff {
-  font-family: var(--hand);
-  font-size: 2rem;
-  color: var(--biro);
-  transform: rotate(-1deg);
-  margin-bottom: 0.5rem;
+.comments-title {
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 1.25rem;
+}
+
+.comment + .comment {
+  margin-top: 1.4rem;
+}
+
+.comment-meta {
+  font-size: 0.85rem;
+  margin-bottom: 0.15rem;
+}
+
+.comment-meta strong {
+  font-weight: 700;
+}
+
+.comment-meta span {
+  color: var(--ink-faint);
+  margin-left: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.comment-body {
+  font-size: 0.98rem;
+  white-space: pre-line;
+}
+
+.comment-empty {
+  font-size: 0.9rem;
+  color: var(--ink-faint);
+}
+
+.comment-form {
+  margin-top: 1.5rem;
+}
+
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.comment-text {
+  display: block;
+  font-family: var(--body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.2rem 0 0.3rem;
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  transition: border-color 120ms ease;
+}
+
+.comment-text:focus {
+  outline: none;
+  border-bottom-color: var(--ink-faint);
+}
+
+.comment-actions {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.comment-name {
+  font-family: var(--body);
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  padding: 0.2rem 0;
+  width: 11rem;
+}
+
+.comment-name:focus {
+  outline: none;
+}
+
+.comment-name::placeholder,
+.comment-text::placeholder {
+  color: var(--ink-faint);
+}
+
+.comment-form button {
+  appearance: none;
+  font-family: var(--body);
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  padding: 0.2rem 0;
+  margin-left: auto;
+  cursor: pointer;
+  text-underline-offset: 0.25em;
+  transition: color 120ms ease;
+}
+
+.comment-form button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.comment-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.comment-form button:focus-visible {
+  outline: 2px solid var(--ink-faint);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.comment-status {
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+
+/* Colophon */
+
+.colophon {
+  padding: 1.5rem 2.5rem 2rem;
+  border-top: 1px solid var(--rule);
 }
 
 .fineprint {
@@ -283,8 +533,12 @@ article hr::after {
     padding: 2.5rem 1.25rem 2.5rem;
   }
 
+  .comments {
+    padding: 1.75rem 1.25rem 2rem;
+  }
+
   .colophon {
-    padding: 1.5rem 1.25rem 2rem;
+    padding: 1.25rem 1.25rem 1.75rem;
   }
 
   .hand-title {

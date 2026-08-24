@@ -19,8 +19,12 @@
           <p class="role">Head of Design &amp; Experience at Cloudflare</p>
         </div>
         <nav class="elsewhere">
-          <a href="https://x.com/burcs" target="_blank" rel="noreferrer">X</a>
-          <a href="https://github.com/stritt" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://x.com/burcs" target="_blank" rel="noreferrer" aria-label="X / Twitter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+          <a href="https://github.com/stritt" target="_blank" rel="noreferrer" aria-label="GitHub">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+          </a>
         </nav>
       </header>
 
@@ -31,16 +35,16 @@
 
           <p>
             It was about 2 years ago that Brayden and I were sitting in our
-            tiny 120 sqft office heads down doing a full rewrite of
-            Outerbase&rsquo;s infrastructure, porting it over to Durable
-            Objects and Workers for Platforms. I remember being so frustrated
-            with the dashboard, but absolutely amazed when it all finally came
+            tiny 120 sqft office heads down doing a major overhaul of
+            <a class="peek" data-peek="assets/peeks/outerbase.png" href="https://www.outerbase.com" target="_blank" rel="noreferrer">Outerbase&rsquo;s
+            </a> infrastructure, porting it over to Durable Objects and
+            Workers. I remember being so frustrated with the
+            dashboard, but absolutely amazed when it all finally came
             together.
           </p>
           <p>
-            How could something so powerful be so&hellip; bad? There was next
-            to no consistency, the calls were slow, and the navigation was
-            confusing, but the end product almost made wading through the muck
+            How could something so powerful be so&hellip; difficult? Nothing felt consistent, the pages all loaded slow, and the navigation was
+            incredibly confusing, but the end product was so good it made wading through the muck
             worth it. We joked that if only they gave us access to their
             dashboard we could fix her.
           </p>
@@ -52,33 +56,39 @@
             never the platform.
           </p>
           <p>
-            You know that classic 90s movie trope? The one where the
-            &ldquo;ugly&rdquo; girl just needed to get a haircut and lose the
-            glasses and all of a sudden she was beautiful? Yeah, that&rsquo;s
-            Cloudflare. The dashboard needed to get out of its own way and let
-            the actual core primitives shine through.
+            Honestly, there was not really any one person or thing to blame either. 
+            The dashboard had over 10 years of innovation and releases stacked on top of eachother, shipped by hundreds of developers, each of them building their pages with the best intentions and bringing their own patterns. Every call and decision made sense sense in a silo but there was no glue holding it altogether.
+                      </p>
+          <p>
+            You know that
+            <span class="peek" data-peek="assets/peeks/shes-all-that.gif">classic
+            90s movie trope</span>? The one where the &ldquo;ugly&rdquo; girl
+            just needed to get a haircut and lose the glasses and all of a
+            sudden she was beautiful? Yeah, that&rsquo;s Cloudflare. The
+            dashboard needed to get out of its own way and let the actual core
+            primitives shine through.
           </p>
           <p>
             We were able to make this happen by doing a number of things.
             First we introduced a design system, what you now may know as
-            Kumo. It started on day 1 with Brayden putting up his first PR to
-            add Tailwind to the dashboard. Surprisingly this was a
-            controversial topic with some developers, and that led to the next
-            key unlock for making the redesign happen.
+            <span class="peek" data-peek="assets/peeks/kumo.svg">Kumo</span>.
+            It started on day 1 with Brayden putting up his first PR to add
+            Tailwind to the dashboard. Surprisingly this was a controversial
+            topic with some developers, and that led to the next key unlock
+            for making the redesign happen.
           </p>
           <p>
-            Having agency and being relentless. Thankfully a lot of good
+            Being relentless. Thankfully a lot of good
             people who had a lot of sway had our backs, whether it was us
             being immovable on design decisions or bringing the startup
             mentality into building frontend (ship &amp; iterate ftw).
-            I&rsquo;m sure we upset some folks, and who knows, maybe we even
-            came off as jerks, but to make big changes sometimes you have to
-            be a little annoying about it. Regardless, it didn&rsquo;t take
+            I&rsquo;m sure we upset some folks, and I know I probably came across as a jerk at times, but to make big changes sometimes you have to
+            be a little annoying and unwavering about it. Regardless, it didn&rsquo;t take
             long for people internally and externally to see the progress and
             get on board.
           </p>
           <p>
-            The last big key unlock was taste. I think a lot of the team was
+            The last big key unlock was agency. I think a lot of the team was
             stuck in the mindset that this is just how Cloudflare is. Look at
             AWS, GCP, Azure, this is what big cloud experiences are supposed
             to be like, confusing and clunky. We came in with the opposite
@@ -97,26 +107,231 @@
             dashboard page by page.
           </p>
           <p>
-            In practice that&rsquo;s meant smarter navigation, a Command+K
-            search that finds what you typed, and a DNS records page with a
-            proper table, mobile support, and quick reference built right in.
-            The support portal and member management both got cleaned up, and
-            we shipped generative UI that builds itself when you need it. The
-            feedback so far has been pretty great: &ldquo;100x better,&rdquo;
-            &ldquo;night and day,&rdquo; and my favorite, &ldquo;finally feels
-            like a product.&rdquo;
+
+            We started by building out the data studio, and quickly revamped all of storage offerings, then compute, and finally we took on the rest of the dash. Focusing on really nailing the first time user experience and showing how all of the individual pieces can work together. Whether it is showing how resources bind to your worker, protect your website with access, or even speeding up the ability to claim a new domain for your worker, we're working on revamping the entire dash. So far you all seem to be enjoying it:
+            <span class="peek" data-peek="assets/peeks/tweet-1.png">&ldquo;cloudflare
+            has been getting polished lately,&rdquo;</span>
+            <span class="peek" data-peek="assets/peeks/tweet-2.png">&ldquo;feels
+            10x better than any previous pass,&rdquo;</span> and my favorite,
+            <span class="peek" data-peek="assets/peeks/tweet-3.png">&ldquo;every
+            time I log on the UI looks a little nicer.&rdquo;</span>
           </p>
           <p>
-            There are still a number of pages with early Anne Hathaway vibes,
-            but we&rsquo;re getting there.
+            There are still a number of pages with
+            <span class="peek" data-peek="assets/peeks/anne-hathaway.webp">early
+            Anne Hathaway vibes</span>, but we&rsquo;re getting there.
           </p>
         </article>
       </main>
 
+      <section class="comments" aria-label="Comments">
+        <h2 class="comments-title">Comments</h2>
+        <div class="comment-list" data-comment-list>
+          <p class="comment-empty" data-comment-empty hidden>
+            Nothing here yet — say hello.
+          </p>
+        </div>
+
+        <form class="comment-form" data-comment-form>
+          <input
+            class="honeypot"
+            type="text"
+            name="website"
+            autocomplete="off"
+            tabindex="-1"
+            aria-hidden="true"
+          />
+          <textarea
+            class="comment-text"
+            name="comment"
+            rows="1"
+            maxlength="1000"
+            placeholder="Say something&hellip;"
+            aria-label="Your comment"
+            required
+          ></textarea>
+          <div class="comment-actions">
+            <input
+              class="comment-name"
+              type="text"
+              name="name"
+              maxlength="40"
+              placeholder="Name (optional)"
+              aria-label="Your name"
+            />
+            <p class="comment-status" data-comment-status role="status"></p>
+            <button type="submit">Post &rarr;</button>
+          </div>
+        </form>
+      </section>
+
       <footer class="colophon">
-        <p class="signoff" aria-hidden="true">— Brandon</p>
         <p class="fineprint">Thanks for reading.</p>
       </footer>
     </div>
+
+    <div class="peek-card" data-peek-card aria-hidden="true">
+      <img alt="" data-peek-img />
+    </div>
+
+    <div class="scroll-fade" data-scroll-fade aria-hidden="true"></div>
+
+    <script>
+      // Floating image peeks
+      (function () {
+        var card = document.querySelector("[data-peek-card]");
+        var img = document.querySelector("[data-peek-img]");
+        var fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+
+        // Each peek leans its own way; override per-phrase with data-tilt="-3"
+        var TILTS = [-3, 2, -1.5, 3.5, -2.5, 1.25, -4];
+        var activeTilt = 0;
+
+        function move(e) {
+          var w = card.offsetWidth;
+          var h = card.offsetHeight;
+          var x = Math.min(e.clientX + 24, window.innerWidth - w - 12);
+          var y = Math.min(
+            Math.max(e.clientY - h / 2, 12),
+            window.innerHeight - h - 12
+          );
+          card.style.transform =
+            "translate(" + x + "px," + y + "px) rotate(" + activeTilt + "deg)";
+        }
+
+        document.querySelectorAll(".peek").forEach(function (el, i) {
+          var tilt =
+            el.dataset.tilt !== undefined
+              ? parseFloat(el.dataset.tilt)
+              : TILTS[i % TILTS.length];
+
+          el.addEventListener("mouseenter", function (e) {
+            if (!fine.matches) return;
+            activeTilt = tilt;
+            img.src = el.dataset.peek;
+            card.classList.add("is-visible");
+            move(e);
+          });
+          el.addEventListener("mousemove", move);
+          el.addEventListener("mouseleave", function () {
+            card.classList.remove("is-visible");
+          });
+        });
+      })();
+
+      // Scroll hint — fade clears once the reader reaches the bottom
+      (function () {
+        var fade = document.querySelector("[data-scroll-fade]");
+
+        function update() {
+          var atEnd =
+            window.scrollY + window.innerHeight >=
+            document.documentElement.scrollHeight - 48;
+          fade.classList.toggle("is-done", atEnd);
+        }
+
+        window.addEventListener("scroll", update, { passive: true });
+        window.addEventListener("resize", update);
+        update();
+      })();
+
+      // Comments
+      (function () {
+        var list = document.querySelector("[data-comment-list]");
+        var empty = document.querySelector("[data-comment-empty]");
+        var form = document.querySelector("[data-comment-form]");
+        var status = document.querySelector("[data-comment-status]");
+
+        // Single line that grows with the comment
+        var textarea = form.comment;
+        textarea.addEventListener("input", function () {
+          textarea.style.height = "auto";
+          textarea.style.height = textarea.scrollHeight + "px";
+        });
+
+        function timeLabel(ts) {
+          return new Date(ts).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        }
+
+        function renderComment(c) {
+          var item = document.createElement("div");
+          item.className = "comment";
+
+          var meta = document.createElement("p");
+          meta.className = "comment-meta";
+          var who = document.createElement("strong");
+          who.textContent = c.name;
+          var when = document.createElement("span");
+          when.textContent = timeLabel(c.ts);
+          meta.appendChild(who);
+          meta.appendChild(when);
+
+          var body = document.createElement("p");
+          body.className = "comment-body";
+          body.textContent = c.text;
+
+          item.appendChild(meta);
+          item.appendChild(body);
+          return item;
+        }
+
+        function load() {
+          fetch("/api/comments")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              var comments = (data && data.comments) || [];
+              list.querySelectorAll(".comment").forEach(function (n) {
+                n.remove();
+              });
+              empty.hidden = comments.length > 0;
+              comments.forEach(function (c) {
+                list.appendChild(renderComment(c));
+              });
+            })
+            .catch(function () {
+              empty.hidden = false;
+              empty.textContent = "Comments couldn't load.";
+            });
+        }
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          status.textContent = "";
+          var button = form.querySelector("button");
+          button.disabled = true;
+
+          fetch("/api/comments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: form.name.value,
+              comment: form.comment.value,
+              website: form.website.value,
+            }),
+          })
+            .then(function (r) {
+              return r.json().then(function (data) {
+                if (!r.ok) throw new Error(data.error || "Something went wrong.");
+                form.comment.value = "";
+                form.comment.style.height = "auto";
+                status.textContent = "Posted.";
+                load();
+              });
+            })
+            .catch(function (err) {
+              status.textContent = err.message;
+            })
+            .finally(function () {
+              button.disabled = false;
+            });
+        });
+
+        load();
+      })();
+    </script>
   </body>
 </html>
