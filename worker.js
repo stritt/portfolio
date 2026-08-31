@@ -1,5 +1,11 @@
 const POST_SLUG = "cloudflares-all-that";
 
+const STARTER_ALIASES = new Set([
+  "/starter",
+  "/starter.md",
+  "/cloudflare-starter",
+]);
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -13,11 +19,17 @@ export default {
       url.pathname = "/index.html";
     }
 
-    // The Cloudflare starter checklist, served at a clean extensionless path as
-    // well as its real filename. Markdown has no browser renderer, so the
-    // charset matters — without it the em dashes and arrows in the text come
-    // through as mojibake.
-    if (url.pathname === "/cloudflare-starter") {
+    // The starter checklist. /starter is the name to share; the older
+    // /cloudflare-starter paths stay alive because that link is already out
+    // there, and the doc outgrew the Cloudflare-specific name rather than
+    // moving. The file itself keeps its original filename so the .md URL that
+    // was published still resolves.
+    //
+    // Only extensionless paths reach here — /cloudflare-starter.md matches a
+    // real asset and is served before the Worker runs, which is also why it
+    // comes back without the charset below. Markdown has no browser renderer,
+    // and without the charset the em dashes and arrows render as mojibake.
+    if (STARTER_ALIASES.has(url.pathname)) {
       url.pathname = "/cloudflare-starter.md";
       const asset = await env.ASSETS.fetch(new Request(url.toString(), request));
       const headers = new Headers(asset.headers);
