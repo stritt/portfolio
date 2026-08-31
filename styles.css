@@ -1,557 +1,309 @@
-/* burcs.dev — a framed page with the author's hand on it */
-
-@font-face {
-  font-family: "Biro Script";
-  src: url("fonts/BiroScriptReduced.otf") format("opentype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Atkinson Hyperlegible";
-  src: url("fonts/AtkinsonHyperlegible-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Atkinson Hyperlegible";
-  src: url("fonts/AtkinsonHyperlegible-Italic.woff2") format("woff2");
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Atkinson Hyperlegible";
-  src: url("fonts/AtkinsonHyperlegible-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-:root {
-  --paper: #ffffff;
-  --ink: #1c1c1a;
-  --ink-faint: #75736c;
-  --biro: #2242c8;
-  --biro-wash: #eaeefc;
-  --rule: #edece7;
-  --grain-opacity: 0.05;
-  --body: "Atkinson Hyperlegible", system-ui, sans-serif;
-  --hand: "Biro Script", cursive;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #191a1c;
-    --ink: #e8e6df;
-    --ink-faint: #93918a;
-    --biro: #8fa3ff;
-    --biro-wash: #232a45;
-    --rule: #292a2d;
-    --grain-opacity: 0.08;
-  }
-}
-
-* {
-  margin: 0;
-  box-sizing: border-box;
-}
-
-html {
-  background: var(--paper);
-}
-
-body {
-  font-family: var(--body);
-  font-size: 1.0625rem;
-  line-height: 1.65;
-  color: var(--ink);
-  background: var(--paper);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Paper grain — a fine static noise over everything */
-
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  pointer-events: none;
-  opacity: var(--grain-opacity);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-/* The frame — vertical rules bounding the page, fading out at both ends */
-
-.frame {
-  position: relative;
-  max-width: 44rem;
-  min-height: 100vh;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.frame::before,
-.frame::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    var(--rule) 7rem,
-    var(--rule) calc(100% - 7rem),
-    transparent
-  );
-}
-
-.frame::before {
-  left: 0;
-}
-
-.frame::after {
-  right: 0;
-}
-
-/* Scroll hint — the page fades at the bottom edge until you reach the end */
-
-.scroll-fade {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 7rem;
-  z-index: 30;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    color-mix(in srgb, var(--paper) 92%, transparent)
-  );
-  opacity: 1;
-  transition: opacity 300ms ease;
-}
-
-.scroll-fade.is-done {
-  opacity: 0;
-}
-
-::selection {
-  background: var(--biro-wash);
-  color: var(--ink);
-}
-
-a {
-  color: var(--biro);
-  text-decoration-color: color-mix(in srgb, var(--biro) 45%, transparent);
-  text-underline-offset: 0.2em;
-  transition: text-decoration-color 120ms ease;
-}
-
-a:hover {
-  text-decoration-color: var(--biro);
-}
-
-a:focus-visible {
-  outline: 2px solid var(--biro);
-  outline-offset: 3px;
-  border-radius: 2px;
-}
-
-/* Masthead — photo, name, role; one quiet row */
-
-.masthead {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 1.25rem 2.5rem;
-  border-bottom: 1px solid var(--rule);
-}
-
-.avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.ident {
-  min-width: 0;
-}
-
-.name {
-  font-weight: 400;
-  line-height: 1.3;
-}
-
-.role {
-  font-size: 0.85rem;
-  color: var(--ink-faint);
-  line-height: 1.35;
-}
-
-.elsewhere {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.elsewhere a {
-  display: flex;
-  color: var(--ink-faint);
-  transition: color 120ms ease;
-}
-
-.elsewhere a:hover {
-  color: var(--ink);
-}
-
-/* Article */
-
-main {
-  flex: 1;
-  padding: 3.5rem 2.5rem 3rem;
-}
-
-.hand-title {
-  font-family: var(--hand);
-  font-size: 2.9rem;
-  font-weight: normal;
-  line-height: 1.1;
-  letter-spacing: 0;
-  color: var(--ink);
-  transform: rotate(-0.75deg);
-  margin-bottom: 0.75rem;
-}
-
-.dateline {
-  font-size: 0.8rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  margin-bottom: 2.25rem;
-}
-
-article p + p,
-article ul + p,
-article blockquote + p {
-  margin-top: 1.3em;
-}
-
-article h2 {
-  font-size: 1.3rem;
-  line-height: 1.3;
-  font-weight: 700;
-  margin: 2.2em 0 0.8em;
-}
-
-article h3 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin: 2em 0 0.7em;
-}
-
-article ul,
-article ol {
-  margin: 1.3em 0;
-  padding-left: 1.4em;
-}
-
-article li + li {
-  margin-top: 0.5em;
-}
-
-article blockquote {
-  margin: 1.7em 0;
-  padding-left: 1.4em;
-  border-left: 2px solid var(--biro);
-  font-style: italic;
-  color: color-mix(in srgb, var(--ink) 82%, var(--paper));
-}
-
-article img,
-article video {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  margin: 1.7em 0;
-}
-
-article code {
-  font-family: var(--mono);
-  font-size: 0.85em;
-  background: color-mix(in srgb, var(--rule) 45%, var(--paper));
-  padding: 0.15em 0.35em;
-  border-radius: 4px;
-}
-
-article pre {
-  font-family: var(--mono);
-  font-size: 0.85rem;
-  line-height: 1.6;
-  background: color-mix(in srgb, var(--rule) 45%, var(--paper));
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
-  overflow-x: auto;
-  margin: 1.7em 0;
-}
-
-article pre code {
-  background: none;
-  padding: 0;
-}
-
-article hr {
-  border: 0;
-  text-align: center;
-  margin: 2.4em 0;
-}
-
-article hr::after {
-  content: "* * *";
-  color: var(--ink-faint);
-  letter-spacing: 0.6em;
-}
-
-/* Peeks — hover a marked phrase, an image floats up by the cursor */
-
-.peek {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-style: dashed;
-  text-decoration-color: color-mix(in srgb, var(--ink-faint) 65%, transparent);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-  cursor: default;
-  transition: background-color 120ms ease, text-decoration-color 120ms ease;
-}
-
-/* A peek can also be a real link — same quiet look, pointer cursor */
-a.peek {
-  cursor: pointer;
-}
-
-.peek:hover {
-  background: var(--biro-wash);
-  text-decoration-color: var(--biro);
-}
-
-.peek-card {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: min(300px, 40vw);
-  pointer-events: none;
-  z-index: 40;
-  opacity: 0;
-  scale: 0.94;
-  transition: opacity 160ms ease, scale 160ms ease;
-}
-
-.peek-card.is-visible {
-  opacity: 1;
-  scale: 1;
-}
-
-.peek-card img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
-}
-
-/* Comments */
-
-.comments {
-  padding: 1.75rem 2.5rem 2rem;
-  border-top: 1px solid var(--rule);
-}
-
-.comments-title {
-  font-size: 0.8rem;
-  font-weight: 400;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  margin-bottom: 1.25rem;
-}
-
-.comment + .comment {
-  margin-top: 1.4rem;
-}
-
-.comment-meta {
-  font-size: 0.85rem;
-  margin-bottom: 0.15rem;
-}
-
-.comment-meta strong {
-  font-weight: 700;
-}
-
-.comment-meta span {
-  color: var(--ink-faint);
-  margin-left: 0.6rem;
-  font-size: 0.8rem;
-}
-
-.comment-body {
-  font-size: 0.98rem;
-  white-space: pre-line;
-}
-
-.comment-empty {
-  font-size: 0.9rem;
-  color: var(--ink-faint);
-}
-
-.comment-form {
-  margin-top: 1.5rem;
-}
-
-.honeypot {
-  position: absolute;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.comment-text {
-  display: block;
-  font-family: var(--body);
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: var(--ink);
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--rule);
-  padding: 0.2rem 0 0.3rem;
-  width: 100%;
-  resize: none;
-  overflow: hidden;
-  transition: border-color 120ms ease;
-}
-
-.comment-text:focus {
-  outline: none;
-  border-bottom-color: var(--ink-faint);
-}
-
-.comment-actions {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.comment-name {
-  font-family: var(--body);
-  font-size: 0.85rem;
-  color: var(--ink);
-  background: none;
-  border: 0;
-  padding: 0.2rem 0;
-  width: 11rem;
-}
-
-.comment-name:focus {
-  outline: none;
-}
-
-.comment-name::placeholder,
-.comment-text::placeholder {
-  color: var(--ink-faint);
-}
-
-.comment-form button {
-  appearance: none;
-  font-family: var(--body);
-  font-size: 0.85rem;
-  color: var(--ink-faint);
-  background: none;
-  border: 0;
-  padding: 0.2rem 0;
-  margin-left: auto;
-  cursor: pointer;
-  text-underline-offset: 0.25em;
-  transition: color 120ms ease;
-}
-
-.comment-form button:hover {
-  color: var(--ink);
-  text-decoration: underline;
-}
-
-.comment-form button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.comment-form button:focus-visible {
-  outline: 2px solid var(--ink-faint);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-.comment-status {
-  font-size: 0.8rem;
-  color: var(--ink-faint);
-}
-
-/* Colophon */
-
-.colophon {
-  padding: 1.5rem 2.5rem 2rem;
-  border-top: 1px solid var(--rule);
-}
-
-.fineprint {
-  font-size: 0.8rem;
-  color: var(--ink-faint);
-}
-
-@media (max-width: 540px) {
-  .masthead {
-    padding: 1rem 1.25rem;
-  }
-
-  main {
-    padding: 2.5rem 1.25rem 2.5rem;
-  }
-
-  .comments {
-    padding: 1.75rem 1.25rem 2rem;
-  }
-
-  .colophon {
-    padding: 1.25rem 1.25rem 1.75rem;
-  }
-
-  .hand-title {
-    font-size: 2.2rem;
-  }
-
-  .role {
-    font-size: 0.8rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
+/* ==========================================================================
+   burcs.dev
+
+   Structure is aura.software's, which in turn is georgewood.me's: two type
+   sizes, hierarchy from weight and opacity rather than scale, a 640px column
+   with rails at its edges, 64px section rhythm, rows with a negative-margin
+   bleed, and a film grain over everything.
+
+   One departure from aura: paper instead of near-black. That changes more than
+   it looks like it should — the grain has to darken rather than lighten, and
+   the dim tiers run the opposite direction. Both are noted where they live.
+   ========================================================================== */
+
+/* ----------------------------------------------------------------- font -- */
+/* Atkinson Hyperlegible, self-hosted, regular only.
+
+   Every measurement below is aura's, value for value: 14px base at 1.5, 12px
+   for labels and descriptions, 1.7 for the intro, tracking 0 everywhere except
+   uppercase labels at +0.6px.
+
+   The one thing deliberately NOT taken from aura is its 400/700 weight step.
+   Atkinson's bold is a heavy, high-contrast cut drawn for legibility at
+   distance, and at 14px in a quiet grid it shouts. So the hierarchy runs on
+   ink and size alone: a title is simply the only full-strength text in its
+   row, and everything around it sits on the dim tier and falls back on its
+   own. The bold woff2 is not loaded at all, which also drops a file from the
+   page load.
+
+   The one thing not carried over is aura's metric-matched fallback. That trick
+   needs real measured numbers off the font — Commit Mono's are in aura's
+   comment — and Atkinson's aren't measured here, so this declares a plain
+   fallback stack rather than inventing overrides. Cost is a small reflow on
+   font swap; the alternative would be made-up numbers. */
+
+@font-face{
+  font-family:"Atkinson Hyperlegible";
+  src:url("fonts/AtkinsonHyperlegible-Regular.woff2") format("woff2");
+  font-weight:400;
+  font-style:normal;
+  font-display:swap;
+}
+:root{
+  color-scheme:light;          /* light only — no dark variant on purpose */
+
+  --bg:      #FAF9F7;
+  --ink:     #1A1A1A;
+  --rule:    rgba(0,0,0,.13);
+
+  /* Measured against #FAF9F7 rather than eyeballed. This runs the opposite
+     direction from aura's dark theme: on paper the text is the dark thing, so
+     *more* opacity means more contrast and the usable tier sits high. .60 is
+     the floor — anything under it drops below 4.5:1 — which is why there is
+     only one tier here where aura has two. */
+  --dim-1:   .73;   /* 7.0:1 — labels, roles, descriptions, links */
+
+  --col:     640px;
+  --pad:     16px;
+
+  --body:    "Atkinson Hyperlegible", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+
+html{ -webkit-text-size-adjust:100%; }
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:14px;
+  font-weight:400;
+  line-height:1.5;
+  /* Tracking 0, which is aura's value and also what Atkinson wants — the face
+     is drawn wide and open for legibility, so tightening it fights the design.
+     Uppercase labels still get opened up; see .label. */
+  letter-spacing:0;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+a{ color:inherit; text-decoration:none; }
+
+::selection{ background:var(--ink); color:var(--bg); }
+
+:focus-visible{ outline:2px solid var(--ink); outline-offset:3px; border-radius:2px; }
+
+/* ---------------------------------------------------------------- grain -- */
+/* feTurbulence noise, blended with multiply so it can only darken. Straight
+   alpha compositing would have washed the paper out toward white instead of
+   giving it any tooth. Low opacity because multiply bites much harder on a
+   light ground than normal blending does on a dark one. */
+
+.grain{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  opacity:.08;
+  mix-blend-mode:multiply;
+  pointer-events:none;
+  z-index:50;
+}
+
+/* ---------------------------------------------------------------- rails -- */
+/* The two vertical rules flanking the column. Fixed rather than in the flow so
+   they run the full viewport height, and under the grain so the texture reads
+   across them. The row rules bleed to exactly these x positions, so the
+   horizontals meet the verticals and the whole thing closes into a grid. */
+
+.rails{
+  position:fixed;
+  top:0; bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(var(--col), 100%);
+  border-left:1px solid var(--rule);
+  border-right:1px solid var(--rule);
+  pointer-events:none;
+  z-index:40;
+}
+
+/* ------------------------------------------------------------ container -- */
+
+.container{
+  position:relative;
+  width:100%;
+  max-width:var(--col);
+  margin:0 auto;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+/* --------------------------------------------------------------- header -- */
+
+.header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:24px var(--pad);
+  border-bottom:1px solid var(--rule);
+}
+
+.ident{ display:flex; align-items:center; gap:12px; }
+
+/* The photo sits in the same bordered square aura gives its wordmark, so the
+   masthead keeps its shape whether the thing inside it is a logo or a face. */
+.ident__mark{
+  display:flex;
+  width:44px; height:44px;
+  align-items:center;
+  justify-content:center;
+  border:1px solid var(--rule);
+  border-radius:4px;
+  overflow:hidden;
+  flex:none;
+}
+.ident__mark img{
+  width:100%; height:100%;
+  object-fit:cover;
+  display:block;
+}
+
+.ident__text{ display:flex; flex-direction:column; }
+.ident__name{ line-height:1.3; }
+.ident__role{ opacity:var(--dim-1); line-height:1.3; }
+
+/* The masthead's right-hand slot is a single link out. Same treatment as a
+   row link so the two read as the same kind of thing. */
+.meta__link{
+  flex:none;
+  line-height:1.3;        /* aura's masthead value */
+  opacity:var(--dim-1);
+  white-space:nowrap;
+  transition:opacity .2s;
+}
+.meta__link:hover{ opacity:1; }
+
+/* ----------------------------------------------------------------- main -- */
+
+.main{ flex:1; padding:0 var(--pad); }
+
+.intro{ margin-top:64px; line-height:1.7; }
+.intro p{ margin:0 0 18px; }
+.intro p:last-child{ margin-bottom:0; }
+
+.section{ margin-top:64px; }
+
+.section__head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:16px;
+}
+.label{
+  font-size:12px;
+  font-weight:400;
+  letter-spacing:.6px;   /* uppercase always wants opening up */
+  opacity:var(--dim-1);
+}
+.section__aside{ opacity:var(--dim-1); }
+
+/* ----------------------------------------------------------------- rows -- */
+
+/* .rows is a bare wrapper on purpose. A border-bottom on it would sit inside
+   the text column and stop short of the rails, while every other rule in the
+   stack bleeds out to meet them — so the closing rule goes on the last row,
+   which already has the bleed. */
+
+.row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:12px var(--pad);
+  margin:0 calc(var(--pad) * -1);   /* rules bleed past the text column */
+  border-top:1px solid var(--rule);
+}
+.row:last-child{ border-bottom:1px solid var(--rule); }
+
+.row__body{ min-width:0; }
+
+.row__top{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+/* .row__name carries no rules on purpose. With no weight step it is just the
+   inherited full-strength ink, and it reads as the title because everything
+   else in the row is dimmed or smaller. */
+
+.row__desc{
+  margin:3px 0 0;
+  font-size:12px;
+  opacity:var(--dim-1);
+}
+
+.pill{
+  display:inline-block;
+  padding:2px 8px;
+  border:1px solid var(--rule);
+  border-radius:999px;
+  font-size:12px;
+  white-space:nowrap;
+  opacity:.8;
+}
+
+/* Right-hand column of a row: a link on things you can go to, a date on things
+   you can't. Both sit on the name's line rather than between the two lines. */
+.row__link,
+.row__date{
+  flex:none;
+  line-height:1.5;        /* sits on the name's line, not between the two */
+  opacity:var(--dim-1);
+  white-space:nowrap;
+}
+.row__date{ font-variant-numeric:tabular-nums; }
+
+.row__link{ transition:opacity .2s; }
+a.row__link:hover{ opacity:1; }
+
+/* --------------------------------------------------------------- footer -- */
+
+.footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-top:64px;
+  border-top:1px solid var(--rule);
+}
+.footer__year{ padding:16px var(--pad); }
+.footer__made{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  opacity:var(--dim-1);
+  padding:16px var(--pad);
+}
+/* The hairline keeps the white stripes from dissolving into the paper — aura
+   uses a white glow here for the same reason against its near-black. */
+.flag{
+  border-radius:1px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.22);
+  display:block;
+}
+
+/* ---------------------------------------------------------- narrow view -- */
+
+@media (max-width:640px){
+  .header{ align-items:flex-end; }
+  .ident{ flex-direction:column; align-items:flex-start; gap:10px; }
+  .ident__mark{ width:32px; height:32px; }
+  .row__link,
+  .row__date{ font-size:12px; }
+}
+
+/* ------------------------------------------------------- reduced motion -- */
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    transition-duration:.01ms !important;
+    animation-duration:.01ms !important;
   }
 }

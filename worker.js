@@ -13,6 +13,18 @@ export default {
       url.pathname = "/index.html";
     }
 
+    // The Cloudflare starter checklist, served at a clean extensionless path as
+    // well as its real filename. Markdown has no browser renderer, so the
+    // charset matters — without it the em dashes and arrows in the text come
+    // through as mojibake.
+    if (url.pathname === "/cloudflare-starter") {
+      url.pathname = "/cloudflare-starter.md";
+      const asset = await env.ASSETS.fetch(new Request(url.toString(), request));
+      const headers = new Headers(asset.headers);
+      headers.set("content-type", "text/markdown; charset=utf-8");
+      return new Response(asset.body, { status: asset.status, headers });
+    }
+
     return env.ASSETS.fetch(new Request(url.toString(), request));
   },
 };
