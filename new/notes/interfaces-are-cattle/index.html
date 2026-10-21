@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Interfaces are cattle, not pets… — burcs.dev</title>
+    <meta name="description" content="The future of generative UI isn't finding better ways to save dashboards. It's making them so cheap to create that we don't need to." />
+    <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main class="desk">
+      <article class="sheet" id="sheet">
+        <div class="head">
+          <a href="/">← Interfaces are cattle, not pets…</a>
+          <span>10.20.26</span>
+        </div>
+
+        <p>
+          I recently received an email from a popular analytics company letting
+          me know that I could now save the UIs I generate instead of recreating
+          them each time. This was pitched as a time-saving feature.
+        </p>
+        <p>
+          I never responded, for two reasons. One, email is the worst way to get
+          ahold of me. And two, it falls into the same trap that much of modern
+          generative UI tooling does: spend time learning this new paradigm now,
+          and it'll save you time in the future.
+        </p>
+        <p>
+          You could argue I'm just focused on the shiny object in front of me,
+          but I think it's more likely rooted in the fact that tomorrow is
+          unpredictable. What I want tomorrow probably doesn't map 1:1 to what I
+          want today.
+        </p>
+        <p>
+          And when interfaces take seconds to generate, there's a real cost to
+          learning how to preserve them. I now need to understand where these
+          interfaces are saved, how to find them again, and how to edit them
+          when my needs inevitably change. At some point, starting from scratch
+          just feels easier.
+        </p>
+        <p>
+          Today we treat dashboards and interfaces like pets. Something precious
+          that we love, maintain, nurture, and care for.
+        </p>
+        <p>
+          But in the not-too-distant future, I see that changing. Dashboards
+          will become something we consume and then discard. A point-in-time
+          generation that fills exactly the gap we need it to, answers our most
+          pressing questions, and then gets out of the way.
+        </p>
+        <p>
+          That doesn't mean the underlying data or context should be
+          disposable. But the interface itself? Maybe that's just packaging.
+        </p>
+        <p>
+          <strong>The future of generative UI isn't finding better ways to save
+          dashboards. It's making them so cheap to create that we don't need
+          to.</strong>
+        </p>
+      </article>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

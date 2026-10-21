@@ -1,0 +1,182 @@
+/* Brandon Pencil — built from Brandon's own handwriting. The DOM only ever
+   uses the plain cut (~225 KB). Graphite (~680 KB, a COLRv1 colour font with
+   pressure and grain inside the strokes) is too slow for the browser to
+   paint live, so ink.js draws it once per page in a worker and the paper
+   shader shows it; .inked hides the plain text underneath. */
+@font-face {
+  font-family: "Brandon Pencil";
+  src: url("/fonts/BrandonPencil-Regular.woff2") format("woff2");
+  font-display: block;
+}
+
+:root {
+  --font: "Brandon Pencil", cursive;
+  /* One size for everything; hierarchy comes from spacing, not scale. */
+  --fs: 20px;
+  --ink: #121318;
+  --pen: #10288a;
+  --marker: #fff09a;
+
+  /* Written by main.js from the sheet's width. These are the fallbacks. */
+  --W: 816px;
+  --L: 33px;
+  --n0: 3;
+  --pad-l: 136px;
+  --pad-r: 40px;
+  --pad-b: 99px;
+  --H-min: 1056px;
+  --gutter: 40px;
+  --top-gap: 72px;
+  --gap: 3px;
+
+  /* Font ascent/descent as a fraction of the em, measured at runtime. */
+  --asc: 0.9;
+  --desc: 0.25;
+
+  color-scheme: light dark;
+}
+
+html {
+  background: #bfbab0;
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) { background: #1b1a19; }
+}
+html[data-theme="dark"] { background: #1b1a19; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#gl {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+.desk {
+  position: relative;
+  padding: var(--top-gap) var(--gutter) calc(var(--top-gap) * 1.5);
+}
+
+/* The sheet is transparent — the canvas paints the paper under it. Multiply
+   lets the paper's tooth and the rules show through the graphite. */
+.sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--W);
+  min-height: var(--H-min);
+  margin: 0 auto;
+  padding: calc((var(--n0) - 1) * var(--L)) var(--pad-r) var(--pad-b) var(--pad-l);
+  font-family: var(--font);
+  font-size: var(--fs);
+  line-height: var(--L);
+  color: var(--ink);
+  font-synthesis: none;
+  font-kerning: normal;
+  font-feature-settings: "calt" 1, "kern" 1;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.ready .sheet { opacity: 1; }
+.sheet.inked { -webkit-text-fill-color: transparent; }
+
+.sheet * { margin: 0; padding: 0; }
+
+/* Every line box is one rule tall. The transform drops each so the font's
+   baseline lands --gap above its rule:
+     baseline in a box of height L = L/2 + (asc - desc) * fs / 2            */
+.head, .sheet h1, .sheet h2, .sheet p, .sheet li {
+  font-size: var(--fs);
+  font-weight: 400;
+  line-height: var(--L);
+  transform: translateY(
+    calc(var(--L) / 2 - (var(--asc) - var(--desc)) * var(--fs) / 2 - var(--gap))
+  );
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0 1em;
+  letter-spacing: 0.02em;
+  color: #2a2b31;
+}
+/* A long title wraps onto the next rule; the right-hand side never splits. */
+.head > :last-child { white-space: nowrap; margin-left: auto; }
+
+.sheet h1,
+.sheet h2 {
+  margin-top: var(--L);
+}
+
+.sheet .head + * { margin-top: var(--L); }
+.sheet p + p { margin-top: var(--L); }
+.sheet h1 + p { margin-top: 0; }
+
+.sheet ul { list-style: none; }
+.sheet li {
+  position: relative;
+  padding-left: 1.3em;
+}
+.sheet li::before {
+  content: "–";
+  position: absolute;
+  left: 0.2em;
+  color: #2a2b31;
+}
+
+.sheet a {
+  color: var(--pen);
+  text-decoration: none;
+  background: linear-gradient(var(--marker), var(--marker)) no-repeat 0 72% / 0% 0.62em;
+  transition: background-size 0.35s cubic-bezier(0.3, 0.7, 0.2, 1);
+  border-radius: 2px;
+}
+.sheet a:hover,
+.sheet a:focus-visible {
+  background-size: 100% 0.62em;
+  outline: none;
+}
+
+/* A highlighter pass, not bold — the pencil has no bold, and it shouldn't. */
+.sheet strong {
+  font-weight: 400;
+  background: linear-gradient(var(--marker), var(--marker)) no-repeat 0 72% / 100% 0.62em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Note listings: title on the left, date written at the far end of the line. */
+.sheet .entries li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+}
+.sheet .entries .when { white-space: nowrap; }
+
+/* The copy of a sheet being turned during a page change (see main.js). */
+.sheet.flip {
+  position: fixed;
+  z-index: 2;
+  margin: 0;
+  pointer-events: none;
+}
+
+::selection { background: var(--marker); color: inherit; }
+
+/* Without WebGL: a flat CSS sheet so the content still reads. */
+.no-gl .sheet {
+  mix-blend-mode: normal;
+  background-color: #faf8f2;
+  background-image:
+    linear-gradient(90deg, transparent var(--mx), #e88c95 var(--mx), #e88c95 calc(var(--mx) + 1px), transparent calc(var(--mx) + 1px)),
+    repeating-linear-gradient(to bottom, transparent 0 calc(var(--L) - 1px), #9fc0e2 calc(var(--L) - 1px) var(--L));
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.12), 0 18px 50px rgb(0 0 0 / 0.18);
+}
