@@ -120,13 +120,49 @@ function noteEl(item) {
 export async function showWall(sheet) {
   const list = sheet.querySelector(".wall-notes");
   if (!list) return;
+  let reviewError = "";
+  const fragment = new URLSearchParams(location.hash.slice(1));
+  if (fragment.has("review")) {
+    const token = fragment.get("review");
+    history.replaceState(history.state, "", "/wall/?review");
+    try {
+      const res = await fetch("/api/review-session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
+      const data = await res.json();
+      if (!res.ok) reviewError = data.error;
+    } catch { reviewError = "Couldn't sign in. Please try again."; }
+  }
+  let author = isAuthor();
   try {
-    const { items } = await wallApi("GET", { query: "notes" });
+    const data = await wallApi("GET", { query: "notes" });
+    const { items } = data;
+    author = data.author;
     list.replaceChildren(...items.map(noteEl));
   } catch {
     list.replaceChildren(el("p", "wall-empty", "The wall couldn't be reached."));
   }
-  if (isAuthor()) showQueue();
+  if (author) showQueue();
+  else if (new URLSearchParams(location.search).has("review")) {
+    document.querySelector(".wall-queue")?.remove();
+    const panel = el("aside", "wall-queue");
+    panel.setAttribute("aria-label", "Owner sign in");
+    panel.append(el("h2", null, "Review submissions"), el("p", null, reviewError || "Brandon: sign in to see the doodles and comments waiting for approval."));
+    const button = el("button", "wall-arrange", "Email me a sign-in link");
+    const status = el("p", null, "");
+    status.setAttribute("role", "status");
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const res = await fetch("/api/review-link", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        status.textContent = "Sent to your Gmail inbox. Open the private link on this device to review submissions.";
+      } catch (error) { status.textContent = error.message; button.disabled = false; }
+    };
+    const close = el("a", null, "Back to the wall");
+    close.href = "/wall/";
+    panel.append(button, status, close);
+    document.body.append(panel);
+  }
 }
 
 let arranging = false;

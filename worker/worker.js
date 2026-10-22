@@ -10,6 +10,25 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // A review session can moderate submissions, but cannot edit article drafts.
+    const reviewRoute = (url.pathname.startsWith("/api/wall") &&
+      (request.method !== "POST" || url.pathname.endsWith("/approve"))) ||
+      (url.pathname.startsWith("/api/draft/annotations") &&
+        (request.method === "DELETE" || url.pathname.endsWith("/approve") ||
+          (request.method === "GET" && url.searchParams.has("pending"))));
+    if (reviewRoute && await validReviewSession(request, env)) {
+      const headers = new Headers(request.headers);
+      headers.set("x-draft-key", env.DRAFT_KEY);
+      request = new Request(request, { headers });
+    }
+
+    if (url.pathname === "/api/review-link" || url.pathname === "/api/review-session") {
+      if (request.headers.get("origin") !== url.origin) return json({ error: "Not allowed." }, 403);
+      const { success } = await env.API_RATE_LIMITER.limit({ key: request.headers.get("CF-Connecting-IP") || "unknown" });
+      if (!success) return json({ error: "Try again in a minute." }, 429);
+      return env.WALL.get(env.WALL.idFromName("wall")).fetch(request);
+    }
+
     // Limit public writes before they reach a Durable Object. Reads and the
     // owner's authenticated editing session are unaffected.
     if (url.pathname.startsWith("/api/") && ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
@@ -351,6 +370,41 @@ const NOTE_COOLDOWN_MS = 30_000;
 const HIGHLIGHT_COOLDOWN_MS = 600;
 const REVIEW_ALERT_COOLDOWN_MS = 5 * 60_000;
 
+async function reviewSigningKey(env) {
+  return crypto.subtle.importKey("raw", new TextEncoder().encode(`review:${env.DRAFT_KEY}`),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+}
+async function reviewSession(env) {
+  const value = `${Date.now() + 7 * 86400_000}.${crypto.randomUUID()}`;
+  const signature = await crypto.subtle.sign("HMAC", await reviewSigningKey(env), new TextEncoder().encode(value));
+  return `${value}.${Array.from(new Uint8Array(signature), (x) => x.toString(16).padStart(2, "0")).join("")}`;
+}
+async function validReviewSession(request, env) {
+  if (!env.DRAFT_KEY) return false;
+  const token = request.headers.get("cookie")?.match(/(?:^|;\s*)burcs_review=([^;]+)/)?.[1];
+  if (!token) return false;
+  const [expires, nonce, signature] = token.split(".");
+  if (!(Number(expires) > Date.now()) || !nonce || !/^[a-f0-9]{64}$/.test(signature || "")) return false;
+  return crypto.subtle.verify("HMAC", await reviewSigningKey(env),
+    Uint8Array.from(signature.match(/../g), (x) => parseInt(x, 16)), new TextEncoder().encode(`${expires}.${nonce}`));
+}
+async function issueReviewToken(state) {
+  const expired = await state.storage.list({ prefix: "login:" });
+  for (const [key, expires] of expired) if (expires < Date.now()) await state.storage.delete(key);
+  const token = crypto.randomUUID() + crypto.randomUUID();
+  await state.storage.put(`login:${await sha256(token)}`, Date.now() + 86400_000);
+  return token;
+}
+async function newReviewLink(env, state) {
+  if (state) return `https://burcs.dev/wall/#review=${await issueReviewToken(state)}`;
+  const response = await env.WALL.get(env.WALL.idFromName("wall")).fetch("https://internal/internal/review-token", {
+    method: "POST", headers: { "x-draft-key": env.DRAFT_KEY },
+  });
+  if (!response.ok) throw new Error("Could not create review link");
+  const { token } = await response.json();
+  return `https://burcs.dev/wall/#review=${token}`;
+}
+
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -362,11 +416,12 @@ async function notifyReview(state, env, what) {
   const last = await state.storage.get("review:last-alert");
   if (last && now - last < REVIEW_ALERT_COOLDOWN_MS) return;
   try {
+    const link = await newReviewLink(env, what === "comment" ? null : state);
     await env.REVIEW_EMAIL.send({
       from: "hello@burcs.dev",
       to: "brandonstrittmatter@gmail.com",
       subject: `New ${what} to review on burcs.dev`,
-      text: `Someone left a ${what} for your approval. Review it at https://burcs.dev/wall/.`,
+      text: `Someone left a ${what} for your approval. Sign in to review it: ${link}\n\nThis private link works once and expires in 24 hours.`,
     });
     await state.storage.put("review:last-alert", now);
   } catch (error) {
@@ -595,6 +650,43 @@ export class Wall {
     const url = new URL(request.url);
     const author = this.isAuthor(request);
     const id = url.searchParams.get("id") || "";
+
+    if (url.pathname === "/internal/review-token") {
+      if (!author || request.method !== "POST") return json({ error: "Not allowed." }, 403);
+      const token = await issueReviewToken(this.state);
+      return json({ token });
+    }
+    if (url.pathname === "/api/review-link") {
+      if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+      const last = await this.state.storage.get("login:last-email");
+      if (last && Date.now() - last < 60_000) return json({ error: "A link was just sent. Check your inbox, or try again in a minute." }, 429);
+      await this.state.storage.put("login:last-email", Date.now());
+      try {
+        const link = await newReviewLink(this.env, this.state);
+        await this.env.REVIEW_EMAIL.send({ from: "hello@burcs.dev", to: "brandonstrittmatter@gmail.com",
+          subject: "Your burcs.dev review link", text: `Sign in to review doodles and comments: ${link}\n\nThis private link works once and expires in 24 hours. If you did not request it, you can ignore this email.` });
+        return json({ ok: true });
+      } catch {
+        return json({ error: "Couldn't send the link. Please try again shortly." }, 503);
+      }
+    }
+    if (url.pathname === "/api/review-session") {
+      if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+      if (request.headers.get("origin") !== url.origin) return json({ error: "Not allowed." }, 403);
+      const body = await request.json().catch(() => null);
+      if (typeof body?.token !== "string" || body.token.length > 100) return json({ error: "Invalid review link." }, 400);
+      const key = `login:${await sha256(body.token)}`;
+      const accepted = await this.state.storage.transaction(async (txn) => {
+        const expires = await txn.get(key);
+        await txn.delete(key);
+        return expires > Date.now();
+      });
+      if (!accepted) return json({ error: "This link expired or was already used. Request a new one." }, 403);
+      return new Response(JSON.stringify({ ok: true }), { headers: {
+        "content-type": "application/json", "cache-control": "no-store",
+        "set-cookie": `burcs_review=${await reviewSession(this.env)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`,
+      } });
+    }
 
     if (url.pathname.endsWith("/approve")) {
       if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);

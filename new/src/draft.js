@@ -860,4 +860,15 @@ export function startDraft({ sheet, untilt }) {
 
   status("Draft · loading…");
   load(true).then(connect);
+  return async () => {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = 0;
+      if (author) await save();
+    }
+    await saving;
+    const old = socket;
+    socket = null;
+    old?.close();
+  };
 }

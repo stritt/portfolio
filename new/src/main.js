@@ -1,6 +1,6 @@
 import { createPaper } from "./paper.js";
 import { createInk } from "./ink.js";
-import { draftParam, draftQuery, startDraft } from "./draft.js";
+import { draftParam, startDraft } from "./draft.js";
 import { doodleParam, startDoodle } from "./doodle.js";
 import { showWall } from "./wall.js";
 import { underline } from "./underline.js";
@@ -21,6 +21,20 @@ const plainOnly = new URLSearchParams(location.search).has("plain");
 // stays in the plain cut and the sheets aren't picked up.
 // Only posts have drafts.
 const drafting = draftParam !== null && location.pathname.startsWith("/notes/");
+let leaveDraft = null;
+function clearModes() {
+  const url = new URL(location.href);
+  url.searchParams.delete("draft");
+  url.searchParams.delete("doodle");
+  history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+}
+if (!drafting && draftParam !== null) clearModes();
+window.addEventListener("pageshow", (e) => {
+  if (!e.persisted) return;
+  clearModes();
+  if (drafting) location.reload();
+  else window.dispatchEvent(new Event("sheet:swap"));
+});
 
 // ---- surroundings --------------------------------------------------------
 // What the sheet lies on and how the room is lit, as indexes into the
@@ -215,7 +229,7 @@ measureFont().then(() => {
   underline(sheet);
   root.classList.add("ready");
   wallPage();
-  if (drafting) startDraft({ sheet, untilt });
+  if (drafting) leaveDraft = startDraft({ sheet, untilt });
   else {
     startDoodle({
       on: doodleParam,
@@ -475,7 +489,7 @@ function fetchPage(path) {
 const internalLink = (e) => {
   const a = e.target.closest?.("a[href]");
   // data-reload: a page that starts a mode on load (draft), so not turned to.
-  if (!a || a.origin !== location.origin || a.target || a.hasAttribute("download") || a.hasAttribute("data-reload")) return null;
+  if (!a || a.origin !== location.origin || a.target || (!drafting && a.search !== location.search) || a.hasAttribute("download") || a.hasAttribute("data-reload")) return null;
   return a;
 };
 
@@ -500,6 +514,7 @@ document.addEventListener("pointerover", (e) => {
 });
 
 window.addEventListener("popstate", (e) => {
+  clearModes();
   const i = e.state?.i ?? 0;
   const dir = i < histIndex ? -1 : 1;
   histIndex = i;
@@ -719,6 +734,12 @@ function setFold(k) {
 }
 
 async function go(path, push, dir = dirTo(path)) {
+  if (drafting) {
+    await leaveDraft?.();
+    if (push) location.assign(path);
+    else location.replace(path);
+    return;
+  }
   if (drag) return;
   let page;
   try {
@@ -728,7 +749,7 @@ async function go(path, push, dir = dirTo(path)) {
     return;
   }
   finishAnim();
-  if (push) history.pushState({ i: ++histIndex }, "", path + (drafting ? draftQuery : ""));
+  if (push) history.pushState({ i: ++histIndex }, "", path);
   document.title = page.title;
   currentPath = path;
 
@@ -828,6 +849,7 @@ function local(e) {
 
 // Pick up the sheet by a corner, with the next page lying squarely beneath.
 function pickUp(side) {
+  if (drafting) return null;
   const to = rel.next;
   if (!to || anim || flip || !paper || reduced.matches) return null;
   const r = sheetRect();
@@ -958,7 +980,7 @@ function finishDrag() {
   }
   fetchPage(d.to)
     .then((page) => {
-      history.pushState({ i: ++histIndex }, "", d.to + (drafting ? draftQuery : ""));
+      history.pushState({ i: ++histIndex }, "", d.to);
       document.title = page.title;
       currentPath = d.to;
       // The new page is already where it lies; glide up to its top. The

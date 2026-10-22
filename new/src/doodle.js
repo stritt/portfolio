@@ -341,6 +341,8 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   // A new page loads its own doodles; a sheet laid out at a new size is
   // drawn again.
   window.addEventListener("sheet:swap", () => {
+    set(false);
+    document.querySelector(".pin-note")?.remove();
     load();
   });
   let lastSize = `${sheet.offsetWidth}x${sheet.offsetHeight}`;
