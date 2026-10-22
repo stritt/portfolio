@@ -1,5 +1,8 @@
 import { createPaper } from "./paper.js";
 import { createInk } from "./ink.js";
+import { draftParam, draftQuery, startDraft } from "./draft.js";
+import { doodleParam, startDoodle } from "./doodle.js";
+import { showWall } from "./wall.js";
 
 const root = document.documentElement;
 const sheet = document.getElementById("sheet");
@@ -18,6 +21,90 @@ const slow = slowParam === null ? 1 : Number(slowParam) || 6;
 
 // ?plain leaves the text in the plain cut, without the Graphite ink.
 const plainOnly = new URLSearchParams(location.search).has("plain");
+// ?draft is draft mode (see draft.js): the text is live and editable, so it
+// stays in the plain cut and the sheets aren't picked up.
+// Only posts have drafts.
+const drafting = draftParam !== null && location.pathname.startsWith("/notes/");
+
+// ---- surroundings --------------------------------------------------------
+// What the sheet lies on and how the room is lit, as indexes into the
+// shader's desk() and lights. ?bg= and ?light= pick them; ?tune adds a
+// small panel to try them live (the choice is remembered on this device).
+const BACKGROUNDS = ["plaster", "oak", "walnut", "linen", "concrete", "slate", "white"];
+const LIGHTS = ["window", "overcast", "golden", "blinds", "lamp", "night", "studio", "moon"];
+const scene = { bg: null, light: null };
+try {
+  Object.assign(scene, JSON.parse(localStorage.getItem("scene") || "{}"));
+} catch {}
+{
+  const q = new URLSearchParams(location.search);
+  if (BACKGROUNDS.includes(q.get("bg"))) scene.bg = q.get("bg");
+  if (LIGHTS.includes(q.get("light"))) scene.light = q.get("light");
+}
+// Unless one's chosen, the desk follows the theme (plaster in daylight,
+// slate when it's dark) and the light follows the visitor's clock: one of
+// the lights that suits the hour, picked at random each visit, with the sun
+// swinging across and warming as the day goes on. ?hour=18 previews.
+const hourNow = () => {
+  const q = parseFloat(new URLSearchParams(location.search).get("hour"));
+  if (q >= 0 && q < 24) return q;
+  const d = new Date();
+  return d.getHours() + d.getMinutes() / 60;
+};
+const LIGHTS_BY_HOUR = [
+  [5, ["moon"]],
+  [7.5, ["window"]],
+  [11, ["window", "blinds"]],
+  [15, ["blinds", "window"]],
+  [17.5, ["window", "blinds", "golden"]],
+  [20.5, ["golden"]],
+  [24, ["moon"]],
+];
+const timeLight = (() => {
+  const h = hourNow();
+  const choices = LIGHTS_BY_HOUR.find(([end]) => h < end)[1];
+  return choices[Math.floor(Math.random() * choices.length)];
+})();
+// Sun position: -1 first thing in the morning to 1 at dusk; and how warm
+// it's turned, from white at midday to amber at either end.
+const dayNow = () => {
+  const h = hourNow();
+  const x = Math.max(-1, Math.min(1, (h - 13) / 7));
+  return [x, Math.min(1, Math.abs(h - 13) / 6) ** 1.5];
+};
+const bgName = () => scene.bg ?? (isDark() ? "slate" : "plaster");
+const lightName = () => scene.light ?? timeLight;
+
+function tunePanel() {
+  const panel = document.createElement("div");
+  panel.className = "tune";
+  const row = (label, names, key) => {
+    const r = document.createElement("div");
+    r.innerHTML = `<span>${label}</span>`;
+    for (const name of names) {
+      const b = document.createElement("button");
+      b.textContent = name;
+      b.onclick = () => {
+        scene[key] = name;
+        try {
+          localStorage.setItem("scene", JSON.stringify(scene));
+        } catch {}
+        sync();
+        dirty = true;
+      };
+      r.append(b);
+    }
+    return r;
+  };
+  panel.append(row("desk", BACKGROUNDS, "bg"), row("light", LIGHTS, "light"));
+  const sync = () => {
+    for (const b of panel.querySelectorAll("div:first-child button")) b.classList.toggle("on", b.textContent === bgName());
+    for (const b of panel.querySelectorAll("div:last-child button")) b.classList.toggle("on", b.textContent === lightName());
+  };
+  sync();
+  document.body.append(panel);
+}
+if (new URLSearchParams(location.search).has("tune")) tunePanel();
 
 // ---- sheet geometry ----------------------------------------------------
 // Real US loose-leaf: 8.5in wide, wide-ruled at 11/32in, a red margin line
@@ -85,6 +172,21 @@ layout();
 const idle = window.requestIdleCallback ?? ((cb) => setTimeout(cb, 200));
 measureFont().then(() => {
   root.classList.add("ready");
+  // A blank draft sheet is Brandon's draft with his key, anyone else's own
+  // page without it.
+  wallPage();
+  if (drafting) startDraft({ sheet, untilt });
+  else {
+    startDoodle({
+      on: doodleParam,
+      paper,
+      sheet,
+      rect: sheetRect,
+      tilt: () => tiltFor(shownPath),
+      busy: () => !!(anim || drag || flip),
+      redraw: () => (dirty = true),
+    });
+  }
   // Graphite (~3x the plain cut) never blocks first paint: the page shows in
   // the plain cut and its ink is swapped in once drawn (see ink.js).
   const later = () =>
@@ -120,6 +222,12 @@ function resize() {
   dirty = true;
   // Ink is drawn for one sheet width and pixel ratio; redraw for the new one
   // once the resize settles, showing the plain cut meanwhile.
+  // A sheet in hand is dropped back flat.
+  if (drag) {
+    drag = null;
+    endFlip();
+    document.body.classList.remove("grabbing");
+  }
   if (ink && lastInkSize !== inkSize()) {
     lastInkSize = inkSize();
     ink.reset();
@@ -132,7 +240,7 @@ function resize() {
 
 // ---- graphite ink ------------------------------------------------------
 
-const ink = plainOnly || navigator.connection?.saveData ? null : createInk(paper, () => fontMetrics);
+const ink = plainOnly || drafting || navigator.connection?.saveData ? null : createInk(paper, () => fontMetrics);
 canvas.addEventListener?.("webglcontextrestored", () => {
   ink?.reset();
   mainInk = null;
@@ -188,6 +296,8 @@ function prefetchInk(path) {
 }
 
 function prefetchLinkedInk() {
+  // The neighbours first: they're what a grabbed sheet reveals.
+  for (const path of [rel.next, rel.prev]) if (path) prefetchInk(path);
   for (const a of sheet.querySelectorAll("a[href]")) {
     if (a.origin === location.origin && a.pathname !== shownPath) prefetchInk(a.pathname);
   }
@@ -207,6 +317,7 @@ window.addEventListener(
   (e) => {
     if (e.ctrlKey || reduced.matches || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
     e.preventDefault();
+    if (drag) return;   // the page is in hand
     const k = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? window.innerHeight : 1;
     target = Math.min(Math.max(target + e.deltaY * k, 0), maxScroll());
   },
@@ -226,8 +337,11 @@ window.addEventListener(
 // ---- pages -------------------------------------------------------------
 // Every page is a real HTML file. Internal links are intercepted: the next
 // page's sheet is fetched and the change plays out on the pile of paper.
-// Going deeper turns the top sheet over to reveal the next one beneath;
-// going back turns the previous sheet back down on top.
+// Pages also chain with <link rel="prev"/"next">: ← and → turn between
+// them, and a sheet's corner can be picked up and turned over to the next
+// (see "grabbing the paper"). Turning forward lifts the top sheet over to
+// reveal the next one beneath; turning back brings the previous sheet back
+// down on top.
 
 // Each page is its own sheet, so each gets its own patch of paper grain.
 const seedFor = (path) => {
@@ -237,10 +351,39 @@ const seedFor = (path) => {
 };
 const depth = (path) => path.split("/").filter(Boolean).length;
 
+// Nobody sets a sheet down perfectly square: each lies a fraction of a
+// degree off, its own way, in radians.
+const tiltFor = (path) => (((seedFor(path) * 37) % 97) / 96 - 0.5) * 0.0145;
+
+// The sheet's own (untilted) rectangle on screen. Its bounding box grows
+// when it's tilted; the centre stays put.
+function sheetRect() {
+  const b = sheet.getBoundingClientRect();
+  const w = sheet.offsetWidth;
+  const h = sheet.offsetHeight;
+  const left = (b.left + b.right - w) / 2;
+  const top = (b.top + b.bottom - h) / 2;
+  return { left, top, width: w, height: h, right: left + w, bottom: top + h };
+}
+
+function setTilt(path) {
+  sheet.style.setProperty("--tilt", `${tiltFor(path)}rad`);
+}
+setTilt(location.pathname);
+
 let mainSeed = seedFor(location.pathname);
 let currentPath = location.pathname;
 let shownPath = currentPath;   // the page on the resting sheet (lags currentPath mid-turn)
 history.scrollRestoration = "manual";
+// Each history entry knows its place, so popstate can tell back from forward.
+let histIndex = history.state?.i ?? 0;
+history.replaceState({ i: histIndex }, "");
+
+const relOf = (doc) => ({
+  prev: doc.querySelector('link[rel="prev"]')?.getAttribute("href") ?? null,
+  next: doc.querySelector('link[rel="next"]')?.getAttribute("href") ?? null,
+});
+let rel = relOf(document);
 
 const pages = new Map();
 function fetchPage(path) {
@@ -254,7 +397,7 @@ function fetchPage(path) {
         const doc = new DOMParser().parseFromString(html, "text/html");
         const next = doc.getElementById("sheet");
         if (!next) throw new Error(`no #sheet in ${path}`);
-        return { title: doc.title, html: next.innerHTML };
+        return { title: doc.title, html: next.innerHTML, rel: relOf(doc) };
       });
     req.catch(() => pages.delete(path));
     pages.set(path, req);
@@ -264,12 +407,15 @@ function fetchPage(path) {
 
 const internalLink = (e) => {
   const a = e.target.closest?.("a[href]");
-  if (!a || a.origin !== location.origin || a.target || a.hasAttribute("download")) return null;
+  // data-reload: a page that starts a mode on load (draft), so not turned to.
+  if (!a || a.origin !== location.origin || a.target || a.hasAttribute("download") || a.hasAttribute("data-reload")) return null;
   return a;
 };
 
 document.addEventListener("click", (e) => {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  // Inside a sheet being written on, a click places the caret.
+  if (e.target.closest?.('[contenteditable="true"]')) return;
   const a = internalLink(e);
   if (!a) return;
   if (a.pathname === location.pathname) {
@@ -286,37 +432,64 @@ document.addEventListener("pointerover", (e) => {
   if (a && a.pathname !== location.pathname) prefetchInk(a.pathname);
 });
 
-window.addEventListener("popstate", () => go(location.pathname, false));
+window.addEventListener("popstate", (e) => {
+  const i = e.state?.i ?? 0;
+  const dir = i < histIndex ? -1 : 1;
+  histIndex = i;
+  go(location.pathname, false, dir);
+});
 
-// ---- page-turn sound ----
-// A real sheet being turned, clipped from a recording. Decoded on the first
-// interaction (audio can't start before one anyway), then played with a
-// slight change of pitch and level each time so no two turns sound alike.
+// ← and → turn to the neighbouring sheets.
+window.addEventListener("keydown", (e) => {
+  if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+  if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+  const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+  const to = dir > 0 ? rel.next : dir < 0 ? rel.prev : null;
+  if (!to || drag) return;
+  e.preventDefault();
+  go(to, true, dir);
+});
+
+// Neighbours turn the way they lie in the pile; anything else turns
+// forward going deeper and back going up.
+function dirTo(path) {
+  if (path === rel.next) return 1;
+  if (path === rel.prev) return -1;
+  return depth(path) >= depth(currentPath) ? 1 : -1;
+}
+
+// ---- paper sounds ----
+// A real sheet, clipped from one recording: picked up (lift) and turned
+// (flip). Decoded on the first interaction (audio can't start before one
+// anyway), then played with a slight change of pitch and level each time so
+// no two sound alike.
 let audio = null;
-let flipBuf = null;
+const sounds = {};
 function primeSound() {
   if (audio) return;
   const AC = window.AudioContext ?? window.webkitAudioContext;
   if (!AC) return;
   audio = new AC();
-  fetch("/sounds/flip.mp3")
-    .then((r) => r.arrayBuffer())
-    .then((b) => audio.decodeAudioData(b))
-    .then((buf) => (flipBuf = buf))
-    .catch(() => {});
+  for (const name of ["flip", "lift"]) {
+    fetch(`/sounds/${name}.mp3`)
+      .then((r) => r.arrayBuffer())
+      .then((b) => audio.decodeAudioData(b))
+      .then((buf) => (sounds[name] = buf))
+      .catch(() => {});
+  }
 }
 for (const ev of ["pointerdown", "keydown", "touchstart"]) {
   window.addEventListener(ev, primeSound, { once: true, passive: true });
 }
 
-function playFlip() {
-  if (!audio || !flipBuf) return;
+function play(name, level = 0.36, rate = 1) {
+  if (!audio || !sounds[name]) return;
   if (audio.state === "suspended") audio.resume();
   const src = audio.createBufferSource();
-  src.buffer = flipBuf;
-  src.playbackRate.value = (0.94 + Math.random() * 0.12) / Math.sqrt(slow);
+  src.buffer = sounds[name];
+  src.playbackRate.value = (rate * (0.94 + Math.random() * 0.12)) / Math.sqrt(slow);
   const gain = audio.createGain();
-  gain.gain.value = 0.32 + Math.random() * 0.08;
+  gain.gain.value = level * (0.88 + Math.random() * 0.24);
   src.connect(gain).connect(audio.destination);
   src.start();
 }
@@ -330,17 +503,52 @@ function swap(page, path) {
   sheet.innerHTML = page.html;
   document.title = page.title;
   mainSeed = seedFor(path);
+  setTilt(path);
   shownPath = path;
+  rel = page.rel;
+  updateGrips();
   showMainInk(path);
   idle(prefetchLinkedInk, { timeout: 2000 });
   dirty = true;
+  window.dispatchEvent(new CustomEvent("sheet:swap", { detail: { path } }));
 }
 
-// The sheet being turned: a fixed-position copy of a sheet. Its fold is
-// mirrored into the shader, and both sheets' ink is clipped to the parts of
-// paper it sits on, so DOM text and GL paper stay one object.
+// The wall's notes are filled in after the sheet is laid out.
+const wallPage = () => {
+  if (shownPath !== "/wall/") return;
+  showWall(sheet).then(() => window.dispatchEvent(new Event("sheet:changed")));
+};
+window.addEventListener("sheet:swap", wallPage);
+
+// Something on the resting sheet moved after its ink was drawn: draw again.
+window.addEventListener("sheet:changed", () => {
+  if (!ink) return;
+  ink.drop(inkKey(shownPath));
+  mainInk = null;
+  sheet.classList.remove("inked");
+  showMainInk(shownPath);
+});
+
+// Run fn with the sheet measured square to the page, its tilt lifted.
+function untilt(fn) {
+  const t = sheet.style.transform;
+  sheet.style.transform = "none";
+  try {
+    return fn();
+  } finally {
+    sheet.style.transform = t;
+  }
+}
+
+// The sheet being turned. Its fold goes to the shader, which draws the
+// paper and its ink. A link-driven turn also carries a fixed-position copy
+// of the sheet's DOM, clipped to the paper it sits on, for when the ink
+// isn't drawn yet and the plain text is what shows.
 let flip = null;
 let anim = null;
+// While a sheet is being pulled forward, the page that will be revealed
+// lies beneath it where it'll sit once turned to.
+let under = null;
 
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
@@ -356,12 +564,13 @@ function makeFlip(html, rect, seed, inkTex) {
   document.body.append(el);
   rect.h ??= el.offsetHeight;
   el.style.height = `${rect.h}px`;
-  return { el, rect, seed, ink: inkTex, F: [0, 0], n: [0, 1] };
+  return { el, rect, seed, ink: inkTex, tilt: parseFloat(el.style.getPropertyValue("--tilt")) || 0, F: [0, 0], n: [0, 1], R: 0 };
 }
 
 function endFlip() {
-  flip?.el.remove();
+  flip?.el?.remove();
   flip = null;
+  under = null;
   sheet.style.clipPath = "";
   dirty = true;
 }
@@ -372,6 +581,53 @@ function finishAnim() {
   anim = null;
   a.step(1);
   a.done();
+}
+
+// Paper is stiff: lifted, it bows over a radius rather than creasing. A
+// corner just lifted bends tightly; pulled further, the sheet arcs up
+// through the air in a wide curve instead of lying folded back flat.
+const bendRadius = (lift) => {
+  const base = Math.max(26, geo.W * 0.06);
+  return Math.min(base + lift * 0.25, Math.max(base, Math.min(window.innerHeight * 0.24, 200)));
+};
+
+// On screen, how far a point of paper d past the fold (along the paper)
+// moves back toward it: up and over the bend, then lying back flat.
+const travel = (d, R) => (d <= Math.PI * R ? d - R * Math.sin(d / R) : 2 * d - Math.PI * R);
+
+// And back: how far past the fold a point must be to have moved t.
+function pastFold(t, R) {
+  if (t >= Math.PI * R) return (t + Math.PI * R) / 2;
+  let lo = 0;
+  let hi = Math.PI * R;
+  for (let i = 0; i < 28; i++) {
+    const mid = (lo + hi) / 2;
+    if (travel(mid, R) < t) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// Fold the sheet so the paper point G lands at the screen point P.
+// Unstretched paper puts the fold square to G→P, with G just far enough
+// past it that bending over brings it back to P. A small lift is mostly
+// the paper rising off the page, so it barely moves inward.
+function foldFrom(f, G, P) {
+  const dx = G[0] - P[0];
+  const dy = G[1] - P[1];
+  const len = Math.hypot(dx, dy);
+  const R = (f.R = bendRadius(len));
+  if (len < 0.05) {
+    // Lying flat: park the fold far off the sheet.
+    f.n = [0.6, 0.8];
+    f.F = [G[0] + 6e3, G[1] + 8e3];
+    return;
+  }
+  // Settling flat, the last fraction of a pixel keeps its direction.
+  if (len > 1 || !f.lifted) f.n = [dx / len, dy / len];
+  f.lifted = true;
+  const d = pastFold(len, R);
+  f.F = [G[0] - f.n[0] * d, G[1] - f.n[1] * d];
 }
 
 // Turn the page up and over its top edge, like a legal pad. The lifted
@@ -387,20 +643,11 @@ function setFold(k) {
   const end = [C[0], 2 * top - C[1]];       // the corner mirrored over it
   const swing = w * 0.45 * Math.sin(Math.PI * k);
   const P = [C[0] + (end[0] - C[0]) * k - swing, C[1] + (end[1] - C[1]) * k];
-  const nx = C[0] - P[0];
-  const ny = C[1] - P[1];
-  const len = Math.hypot(nx, ny);
-  if (len < 1) {
-    // Not started: park the fold just outside the corner.
-    flip.n = [0.6, 0.8];
-    flip.F = [C[0] + 1, C[1] + 1];
-    return;
-  }
-  flip.n = [nx / len, ny / len];
-  flip.F = [(C[0] + P[0]) / 2, (C[1] + P[1]) / 2];
+  foldFrom(flip, C, P);
 }
 
-async function go(path, push) {
+async function go(path, push, dir = dirTo(path)) {
+  if (drag) return;
   let page;
   try {
     page = await fetchPage(path);
@@ -409,9 +656,8 @@ async function go(path, push) {
     return;
   }
   finishAnim();
-  if (push) history.pushState(null, "", path);
+  if (push) history.pushState({ i: ++histIndex }, "", path + (drafting ? draftQuery : ""));
   document.title = page.title;
-  const from = currentPath;
   currentPath = path;
 
   if (reduced.matches || !paper) {
@@ -420,11 +666,11 @@ async function go(path, push) {
     return;
   }
 
-  const r = sheet.getBoundingClientRect();
+  const r = sheetRect();
   const dur = 600 * slow;
-  playFlip();
+  play("flip");
 
-  if (depth(path) >= depth(from)) {
+  if (dir > 0) {
     // Forward: the current page is turned over, the next one is beneath.
     flip = makeFlip(sheet.innerHTML, { x: r.left, y: r.top, w: r.width, h: r.height }, mainSeed, mainInk);
     swap(page, path);
@@ -435,6 +681,8 @@ async function go(path, push) {
     // page sits at the top of the document while the one beneath scrolls up.
     const top0 = r.top + window.scrollY;
     flip = makeFlip(page.html, { x: r.left, y: top0, w: r.width }, seedFor(path), ink?.get(inkKey(path)));
+    flip.el.style.setProperty("--tilt", `${tiltFor(path)}rad`);
+    flip.tilt = tiltFor(path);
     target = 0;
     anim = {
       start: performance.now(),
@@ -447,13 +695,210 @@ async function go(path, push) {
       },
     };
   }
-  setFold(depth(path) >= depth(from) ? 0 : 1);
+  setFold(dir > 0 ? 0 : 1);
+}
+
+// ---- grabbing the paper ------------------------------------------------
+// A bottom corner of the sheet can be picked up and turned over to the next
+// page, the way a thumb finds the corner of a pad. The corner follows the
+// hand through a stiff spring (paper has a little weight to it), the sheet
+// stays held along its top edge, and when let go it carries through or
+// falls back by how far and how fast it was moving. With a mouse, a corner
+// rises a little as the pointer nears it.
+//
+// Points here are sheet-local, with the origin at the sheet's top left.
+
+let drag = null;
+
+for (const side of ["left", "right"]) {
+  const el = document.createElement("div");
+  el.className = `grip ${side}`;
+  el.setAttribute("aria-hidden", "true");
+  document.querySelector(".desk").append(el);
+  el.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && hover(side, e));
+  el.addEventListener("pointermove", (e) => {
+    if (drag?.phase === "hold") hold(e);
+    else if (e.pointerType === "mouse") hover(side, e);
+  });
+  el.addEventListener("pointerleave", () => drag?.phase === "hover" && letGo(false));
+  el.addEventListener("pointerdown", (e) => grab(side, e));
+  el.addEventListener("pointerup", () => drag?.phase === "hold" && release());
+  el.addEventListener("pointercancel", () => drag?.phase === "hold" && letGo(false));
+}
+
+function updateGrips() {
+  root.classList.toggle("can-turn", !!paper && !reduced.matches && !drafting && !!rel.next);
+}
+updateGrips();
+reduced.addEventListener("change", updateGrips);
+
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+const len2 = (v) => Math.hypot(v[0], v[1]);
+const unit = (v) => {
+  const l = len2(v) || 1;
+  return [v[0] / l, v[1] / l];
+};
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
+const clamp = (x, lo, hi) => Math.min(Math.max(x, lo), hi);
+
+// The pointer in the turning sheet's own frame, undoing its tilt.
+function local(e) {
+  const { x, y, w, h } = flip.rect;
+  const dx = e.clientX - (x + w / 2);
+  const dy = e.clientY - (y + h / 2);
+  const c = Math.cos(flip.tilt);
+  const s = Math.sin(flip.tilt);
+  return [c * dx + s * dy + w / 2, -s * dx + c * dy + h / 2];
+}
+
+// Pick up the sheet by a corner, with the next page lying squarely beneath.
+function pickUp(side) {
+  const to = rel.next;
+  if (!to || anim || flip || !mainInk || !paper || reduced.matches) return null;
+  const r = sheetRect();
+  fetchPage(to).catch(() => {});
+  prefetchInk(to);
+  flip = { el: null, rect: { x: r.left, y: r.top, w: r.width, h: r.height }, seed: mainSeed, ink: mainInk, tilt: tiltFor(shownPath), F: [0, 0], n: [0, 1], R: 0 };
+  under = { seed: seedFor(to), path: to };
+  // The very corner, a hair in so its fold never lands exactly on an edge.
+  const G = [side === "left" ? 1 : r.width - 1, r.height - 1];
+  return { to, side, phase: "hover", G, P: G.slice(), T: G.slice(), V: [0, 0] };
+}
+
+// Where the corner goes when turned: over the top and off-screen, as in
+// setFold.
+function endFor(d) {
+  const top = Math.min(flip.rect.y, 0) - 40 - flip.rect.y;
+  return [d.G[0], 2 * top - d.G[1]];
+}
+
+// How far through the turn the sheet is, 0..1, judged on the part of it
+// that's on screen (a long sheet can't be pulled its whole length).
+function progress(d) {
+  const u = unit(sub(endFor(d), d.G));
+  const span = 2 * (d.G[1] - Math.max(0, -flip.rect.y)) + 80;
+  return clamp(dot(sub(d.P, d.G), u) / span, 0, 1);
+}
+
+// Held at the top edge, like a pad: the corner can't end up further from
+// the top corners than it is along the sheet.
+function bind(d, P) {
+  for (const T of [[0, 0], [flip.rect.w, 0]]) {
+    const r = len2(sub(d.G, T));
+    const v = sub(P, T);
+    const l = len2(v);
+    if (l > r) P = [T[0] + (v[0] * r) / l, T[1] + (v[1] * r) / l];
+  }
+  return P;
+}
+
+// The corner rises toward the pointer as it comes near, peeling in toward
+// the middle of the sheet.
+function hover(side, e) {
+  if (drag && (drag.phase !== "hover" || drag.side !== side)) return;
+  drag ??= pickUp(side);
+  if (!drag) return;
+  const d = drag;
+  const near = 1 - clamp(len2(sub(local(e), d.G)) / 110, 0, 1);
+  const u = unit(sub([flip.rect.w / 2, d.G[1] - Math.min(flip.rect.h, window.innerHeight) / 2], d.G));
+  const lift = 3 + 9 * near;
+  d.T = [d.G[0] + u[0] * lift, d.G[1] + u[1] * lift];
+}
+
+function grab(side, e) {
+  if (e.button !== 0) return;
+  if (drag && (drag.phase === "release" || drag.side !== side)) return;
+  drag ??= pickUp(side);
+  if (!drag) return;
+  e.preventDefault();
+  e.currentTarget.setPointerCapture(e.pointerId);
+  const d = drag;
+  d.phase = "hold";
+  d.from = local(e);
+  d.base = d.P.slice();
+  document.body.classList.add("grabbing");
+  play("lift", 0.22);
+}
+
+function hold(e) {
+  const d = drag;
+  const m = sub(local(e), d.from);
+  d.T = bind(d, [d.base[0] + m[0], d.base[1] + m[1]]);
+}
+
+function release() {
+  const d = drag;
+  const toward = dot(d.V, unit(sub(endFor(d), d.P)));
+  const p = progress(d);
+  // Forgiving: a sheet pulled a hand's width toward the turn, or flicked
+  // onward at all, goes over; it only falls back if barely lifted or pushed
+  // back down. (Progress alone would ask for a long pull on a tall sheet.)
+  const pulled = dot(sub(d.P, d.G), unit(sub(endFor(d), d.G)));
+  letGo(toward > -500 && (pulled > 110 || p > 0.2 || (toward > 350 && p > 0.02)));
+}
+
+function letGo(commit) {
+  const d = drag;
+  const held = d.phase === "hold";
+  d.phase = "release";
+  d.commit = commit;
+  d.T = commit ? endFor(d) : d.G.slice();
+  document.body.classList.remove("grabbing");
+  if (commit) play("flip", 0.36, 1 + clamp(len2(d.V) / 6000, 0, 0.12));
+  else if (held) play("lift", 0.14, 1.2);
+}
+
+function stepDrag(dt) {
+  const d = drag;
+  // Stiff while held, so the paper keeps up with the hand; looser once let
+  // go, when it's the paper's own weight carrying it. Falling back flat it
+  // settles without overshoot, which would fold it the other way.
+  const k = d.phase === "hold" ? 700 : d.phase === "hover" ? 260 : 130;
+  const c = 2 * Math.sqrt(k) * (d.phase === "release" && d.commit ? 0.8 : 1);
+  const steps = 4;
+  const h = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    for (const j of [0, 1]) {
+      d.V[j] += (k * (d.T[j] - d.P[j]) - c * d.V[j]) * h;
+      d.P[j] += d.V[j] * h;
+    }
+  }
+  const o = [flip.rect.x, flip.rect.y];
+  foldFrom(flip, [d.G[0] + o[0], d.G[1] + o[1]], [d.P[0] + o[0], d.P[1] + o[1]]);
+
+  if (d.phase === "release") {
+    const near = len2(sub(d.T, d.P)) < (d.commit ? 40 : 0.8);
+    if (near && (d.commit || len2(d.V) < 12)) finishDrag();
+  }
+}
+
+function finishDrag() {
+  const d = drag;
+  drag = null;
+  if (!d.commit) {
+    endFlip();
+    return;
+  }
+  fetchPage(d.to)
+    .then((page) => {
+      history.pushState({ i: ++histIndex }, "", d.to + (drafting ? draftQuery : ""));
+      document.title = page.title;
+      currentPath = d.to;
+      // The new page is already where it lies; glide up to its top. The
+      // document keeps its height until then, so a shorter page doesn't
+      // jump the view.
+      document.body.style.minHeight = `${root.scrollHeight}px`;
+      swap(page, d.to);
+      target = 0;
+      endFlip();
+    })
+    .catch(() => (location.href = d.to));
 }
 
 // ---- ink clipping ----
-// Both sheets are transparent DOM over the canvas. The turning sheet's ink
-// shows only on its flat part (and is hidden under its own flap); the page
-// beneath shows only where the turning sheet has lifted away.
+// The DOM copy of a link-driven turn shows only on the turning sheet's flat
+// part (hidden under the part turned back over it); the page beneath shows
+// only past the roll.
 
 function clipPoly(poly, F, n, keepAbove) {
   const side = ([x, y]) => ((x - F[0]) * n[0] + (y - F[1]) * n[1]) * (keepAbove ? 1 : -1);
@@ -478,21 +923,25 @@ const subpath = (poly, ox, oy) =>
     : `M ${poly.map(([x, y]) => `${(x - ox).toFixed(1)} ${(y - oy).toFixed(1)}`).join(" L ")} Z `;
 
 function updateFlip(mainRect) {
-  const { el, rect, F, n } = flip;
+  const { el, rect, F, n, R } = flip;
   const box = [
     [rect.x, rect.y],
     [rect.x + rect.w, rect.y],
     [rect.x + rect.w, rect.y + rect.h],
     [rect.x, rect.y + rect.h],
   ];
+  // Paper more than half a turn past the fold lies back over the sheet,
+  // mirrored across the line through the middle of the roll.
+  const at = (k) => [F[0] + n[0] * k, F[1] + n[1] * k];
+  const M = at((Math.PI * R) / 2);
   const reflect = ([x, y]) => {
-    const d = (x - F[0]) * n[0] + (y - F[1]) * n[1];
+    const d = (x - M[0]) * n[0] + (y - M[1]) * n[1];
     return [x - 2 * d * n[0], y - 2 * d * n[1]];
   };
   const flat = clipPoly(box, F, n, false);
-  const flap = clipPoly(box, F, n, true).map(reflect);
-  // evenodd: flat minus flap (the flap outside the flat part carries no ink).
-  const d = subpath(flat, rect.x, rect.y) + subpath(flap, rect.x, rect.y);
+  const back = clipPoly(box, at(Math.PI * R), n, true).map(reflect);
+  // evenodd: flat minus what's turned back over it.
+  const d = subpath(flat, rect.x, rect.y) + subpath(back, rect.x, rect.y);
   el.style.clipPath = d ? `path(evenodd, "${d.trim()}")` : "inset(50%)";
 
   const big = 1e5;
@@ -503,7 +952,7 @@ function updateFlip(mainRect) {
       [big, big],
       [-big, big],
     ],
-    F,
+    at(R),
     n,
     true,
   );
@@ -555,6 +1004,13 @@ function frame(now) {
     dirty = true;
   }
 
+  if (current === 0 && document.body.style.minHeight) document.body.style.minHeight = "";
+
+  if (drag) {
+    stepDrag(dt);
+    dirty = true;
+  }
+
   // The light drifts slowly; idle frames redraw at a third of the rate.
   if (!reduced.matches) {
     time += dt;
@@ -563,24 +1019,35 @@ function frame(now) {
 
   if (dirty && paper) {
     dirty = false;
-    const r = sheet.getBoundingClientRect();
+    const r = sheetRect();
     const { u, L, n0, mx } = geo;
-    if (flip) updateFlip(r);
+    if (flip?.el) updateFlip(r);
     const f = flip?.rect;
+    // While a sheet is pulled forward, the page beneath is the next one.
+    const underInk = under && ink ? ink.get(inkKey(under.path)) : null;
+    const m = { x: r.left, y: r.top, w: r.width, h: under ? underInk?.h ?? r.height : r.height };
     paper.draw({
       view: [root.clientWidth, window.innerHeight],
-      main: [r.left + r.width / 2, r.top + r.height / 2, r.width / 2, r.height / 2],
-      mainSeed,
+      main: [m.x + m.w / 2, m.y + m.h / 2, m.w / 2, m.h / 2],
+      mainSeed: under ? under.seed : mainSeed,
       flip: f ? [f.x + f.w / 2, f.y + f.h / 2, f.w / 2, f.h / 2] : [0, 0, 1, 1],
       fold: flip ? [...flip.F, ...flip.n] : [0, 0, 0, 1],
+      curl: flip?.R ?? 0,
       flipInfo: flip ? [1, flip.seed] : [0, 0],
+      tilt: [tiltFor(under ? under.path : shownPath), flip?.tilt ?? 0],
       rule: [L, n0 * L, u * 0.25, mx],
       hole: [geo.holeX, geo.holeR, u * 4.25, showHoles ? 1 : 0],
       inch: u,
       mouse: [mouse.x, mouse.y],
       time,
-      dark: isDark() ? 1 : 0,
-      inkMain: mainInk,
+      dark: lightName() === "night" ? 1 : 0,
+      bg: BACKGROUNDS.indexOf(bgName()),
+      light: LIGHTS.indexOf(lightName()),
+      day: dayNow(),
+      inkMain: under ? underInk : mainInk,
+      // The page lying on top of the resting sheet in the pile: while one
+      // is being turned up, that's the one in hand; otherwise the previous.
+      inkPrev: under ? mainInk : rel.prev && ink ? ink.get(inkKey(rel.prev)) : null,
       inkFlip: flip?.ink ?? null,
     });
   }

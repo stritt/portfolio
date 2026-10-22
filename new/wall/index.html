@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>The wall — burcs.dev</title>
+    <meta name="description" content="Notes and doodles people have left on burcs.dev." />
+    <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <!-- Notes visitors have pinned up and Brandon has approved, filled in by
+         src/wall.js. -->
+    <main class="desk">
+      <article class="sheet" id="sheet">
+        <div class="head">
+          <a href="/">← The wall</a>
+        </div>
+
+        <p>
+          Notes and doodles people have left here. Draw on this page; I read
+          each one before it goes up.
+        </p>
+
+        <div class="wall-notes"></div>
+        <nav class="tools" aria-label="Write on this page">
+          <button type="button" class="tool" data-tool="doodle">doodle</button>
+          <button type="button" class="tool" data-tool="pin">pin it up</button>
+        </nav>
+      </article>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

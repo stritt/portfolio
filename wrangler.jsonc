@@ -1,17 +1,33 @@
 {
   "name": "burcs-dev",
   "account_id": "3f3fc3f3d329d967573c0e8acc8525e1",
-  "main": "worker.js",
+  "main": "worker/worker.js",
   "compatibility_date": "2026-02-12",
   "assets": {
-    "directory": ".",
-    "binding": "ASSETS"
+    // The ruled-paper site, built by `npm run build` in new/.
+    "directory": "./new/dist",
+    "binding": "ASSETS",
+    // Pages live at /notes/slug/ — the paper's page turns and history use
+    // the trailing slash, so a bare /notes/slug redirects there.
+    "html_handling": "auto-trailing-slash"
   },
   "durable_objects": {
     "bindings": [
       {
         "name": "COMMENTS",
         "class_name": "Comments"
+      },
+      {
+        "name": "PRESENCE",
+        "class_name": "Presence"
+      },
+      {
+        "name": "DRAFTS",
+        "class_name": "Drafts"
+      },
+      {
+        "name": "WALL",
+        "class_name": "Wall"
       }
     ]
   },
@@ -19,6 +35,18 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["Comments"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["Presence"]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["Drafts"]
+    },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": ["Wall"]
     }
   ]
 }

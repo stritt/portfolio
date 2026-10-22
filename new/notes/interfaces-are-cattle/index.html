@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Interfaces are cattle, not pets… — burcs.dev</title>
-    <meta name="description" content="The future of generative UI isn't finding better ways to save dashboards. It's making them so cheap to create that we don't need to." />
+    <meta name="description" content="Why I won't be saving any dashboards: when an interface takes seconds to generate, it's easier to just prompt again." />
+    <!-- Turning back from the newest note returns home; older notes chain on with rel="next". -->
+    <link rel="prev" href="/" vite-ignore />
     <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
@@ -18,49 +20,96 @@
           <span>10.20.26</span>
         </div>
 
+        <figure class="sketch" style="--ar: 0.4724">
+          <img src="/sketches/interfaces.png" width="1194" height="564"
+            alt="Pencil sketches of a dozen throwaway interfaces: windows, panels, bars and inputs." />
+        </figure>
+
         <p>
-          I recently received an email from a popular analytics company letting
-          me know that I could now save the UIs I generate instead of recreating
-          them each time. This was pitched as a time-saving feature.
+          I recently received an email from a popular analytics
+          provider telling me I was one of the most active users of
+          the product, letting me know that I could save my queries
+          into a dashboard, and that they could show me how to do that
+          in a quick 10 minute call.
         </p>
         <p>
-          I never responded, for two reasons. One, email is the worst way to get
-          ahold of me. And two, it falls into the same trap that much of modern
-          generative UI tooling does: spend time learning this new paradigm now,
-          and it'll save you time in the future.
+          I never responded.
         </p>
         <p>
-          You could argue I'm just focused on the shiny object in front of me,
-          but I think it's more likely rooted in the fact that tomorrow is
-          unpredictable. What I want tomorrow probably doesn't map 1:1 to what I
-          want today.
+          I don't want to spend 10 minutes on a call talking about
+          your dashboard for the same reason I don't save my queries.
+          I do not care enough about the prescribed way to hold the
+          product, instead I am more than happy to burn tokens and
+          regenerate the view each time I come in. Why? Well because
+          even though the prompt might look very similar to the
+          previous question I asked, it's probably a little bit
+          different, the questions I need answered today aren't
+          necessarily a 1:1 to questions I asked in a previous
+          session. Sure there's probably a lot of overlap, but the
+          parameters change, the time frame, the goal is different. If
+          I end up having to tweak a previous session's output I might
+          as well start over from scratch.
         </p>
         <p>
-          And when interfaces take seconds to generate, there's a real cost to
-          learning how to preserve them. I now need to understand where these
-          interfaces are saved, how to find them again, and how to edit them
-          when my needs inevitably change. At some point, starting from scratch
-          just feels easier.
+          As long as the token supply is practically endless, I think
+          this same mentality is going to carry over to many other
+          workflows. For instance, I recently built a dashboard to
+          track my finances. I literally never use it. It was great,
+          pretty, I spent a bunch of time polishing it up, but I
+          haven't opened it back up since the day I created it.
+          Instead it's easier for me to feed my transactions into this
+          month's agent of choice and have it re-review and flag any
+          discrepancies or outliers.
         </p>
         <p>
-          Today we treat dashboards and interfaces like pets. Something precious
-          that we love, maintain, nurture, and care for.
+          Right now we treat these interfaces like they are our pets.
+          We maintain them, check on them daily, and nurse them back
+          to health when they break. I think that's going to change,
+          and dashboards will end up closer to cattle: something to
+          consume today and grab a fresh steak the next time I'm
+          hungry.
         </p>
         <p>
-          But in the not-too-distant future, I see that changing. Dashboards
-          will become something we consume and then discard. A point-in-time
-          generation that fills exactly the gap we need it to, answers our most
-          pressing questions, and then gets out of the way.
+          The obvious pushback here is going to be consistency. How
+          can we make sure the user is consuming the interface in the
+          appropriate manner? I think there are a number of solutions
+          to this without overprescribing for the problem.
         </p>
         <p>
-          That doesn't mean the underlying data or context should be
-          disposable. But the interface itself? Maybe that's just packaging.
+          First the data layer is always consistent, it's the source
+          of truth and, barring any sort of hallucinations from the
+          model, it will always ground the interfaces that are being
+          generated.
         </p>
         <p>
-          <strong>The future of generative UI isn't finding better ways to save
-          dashboards. It's making them so cheap to create that we don't need
-          to.</strong>
+          Another idea is giving out approved components. What if your
+          API/CLI/etc… shipped with skills that generated the right
+          point-in-time component? Whether that is a table, chart,
+          etc… you could package those up as skills or blocks that
+          live alongside your data giving your users the best possible
+          way to experience your data. If at that point there's
+          inconsistencies in the column ordering in a table, or
+          showing a line instead of a bar chart it's really not a huge
+          deal.
         </p>
+        <p>
+          There are going to be exceptions of course, I think for a
+          long time there will be a need for a traditional dashboard,
+          a place where you can go when something is mission critical,
+          or if you need a fully repeatable way to produce a result.
+          However for personal inspection or even getting answers to
+          quick questions, generating it yourself oftentimes feels a
+          lot faster than navigating someone else's user experience.
+        </p>
+        <p>
+          So sales rep from big analytics co, no, I will not be saving
+          any dashboards. I've already got my question answered, and
+          for tomorrow's questions? I'll just prompt again.
+        </p>
+        <nav class="tools" aria-label="Write on this page">
+          <a class="tool" href="/wall/?doodle" data-reload>doodle</a>
+          <a class="tool" href="?draft" data-reload>comment</a>
+        </nav>
       </article>
     </main>
 

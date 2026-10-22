@@ -2,3 +2,6 @@ node_modules/
 .wrangler/
 .DS_Store
 .DS_Store
+dist/
+# Local secrets for `wrangler dev` (DRAFT_KEY)
+.dev.vars

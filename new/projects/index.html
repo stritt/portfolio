@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Tinkering — burcs.dev</title>
+    <meta name="description" content="Side projects Brandon Strittmatter has been tinkering with." />
+    <link rel="prev" href="/" vite-ignore />
+    <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main class="desk">
+      <article class="sheet" id="sheet">
+        <div class="head">
+          <a href="/">← Things I'm tinkering with</a>
+        </div>
+
+        <p>
+          Small things I build on the side, mostly to scratch an itch or to
+          learn how something works.
+        </p>
+
+        <ul>
+          <li><a href="https://merchant.dev">merchant.dev</a> — sell anything, anywhere.</li>
+          <li><a href="https://mahoraga.dev">mahoraga.dev</a> — an open-source, LLM-powered trading agent.</li>
+          <li><a href="https://okiro.run">okiro.run</a> — parallel AI variations of your codebase.</li>
+          <li><a href="https://gputable.dev">gputable.dev</a> — live cloud GPU prices across 35+ providers.</li>
+        </ul>
+        <nav class="tools" aria-label="Write on this page">
+          <a class="tool" href="/wall/?doodle" data-reload>doodle</a>
+        </nav>
+      </article>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

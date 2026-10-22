@@ -1,0 +1,12 @@
+# Built scripts and styles are named by their content: keep them forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Fonts, sounds and sketches keep their names when they change, so a week
+# before checking, and meanwhile the copy in hand is used while it does.
+/fonts/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+/sounds/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+/sketches/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
