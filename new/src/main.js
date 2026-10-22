@@ -157,7 +157,8 @@ function layout() {
   const W = Math.min(816, vw - gutter * 2);
   const u = W / 8.5;
   const L = Math.max(28, Math.round((u * 11) / 32));
-  const n0 = Math.max(1, Math.ceil((u * 0.95) / L) - 1);
+  // Keep the broad blank header above the first rule, like real ruled paper.
+  const n0 = Math.max(2, Math.ceil((u * 0.95) / L));
   const mx = Math.round(Math.max(46, u * 1.25));
 
   Object.assign(geo, {
