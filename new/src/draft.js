@@ -68,10 +68,10 @@ async function api(method, sub = "", body, { query = "", headers = {} } = {}) {
 const ALLOWED = {
   P: [], H1: [], H2: [], H3: [], UL: [], OL: [], LI: [], BR: [],
   STRONG: [], EM: [], B: [], I: [], U: [], S: [], STRIKE: [],
-  A: ["href"], DIV: ["class"], SPAN: ["class"],
+  A: ["href"], DIV: ["class"], SPAN: ["class"], SECTION: ["class"],
 };
 const DROP = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "TEMPLATE", "SVG", "MATH"]);
-const CLASSES = new Set(["head", "when", "entries"]);
+const CLASSES = new Set(["head", "when", "entries", "page"]);
 
 function clean(html) {
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");

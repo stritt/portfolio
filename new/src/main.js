@@ -3,6 +3,7 @@ import { createInk } from "./ink.js";
 import { draftParam, draftQuery, startDraft } from "./draft.js";
 import { doodleParam, startDoodle } from "./doodle.js";
 import { showWall } from "./wall.js";
+import { underline } from "./underline.js";
 
 const root = document.documentElement;
 const sheet = document.getElementById("sheet");
@@ -113,6 +114,14 @@ if (new URLSearchParams(location.search).has("tune")) tunePanel();
 // below a comfortable line of text.
 
 const geo = {};
+const STACK_GAP = 44;   // desk between stacked sheets, CSS px
+
+// A note stacked over several sheets: each sheet's height and the gap
+// between, for the paper under it; [0, 0] for a single sheet.
+function stackOf(el) {
+  if (!el.classList.contains("stacked") || root.classList.contains("flat")) return [0, 0];
+  return [(geo.W * 11) / 8.5, STACK_GAP];
+}
 
 function layout() {
   const vw = root.clientWidth;
@@ -145,7 +154,10 @@ function layout() {
     "--gutter": `${gutter}px`,
     "--top-gap": `${vw < 640 ? 16 : 72}px`,
     "--gap": `${Math.max(1, L * 0.04)}px`,
+    "--stack-gap": `${STACK_GAP}px`,
   };
+  // A stacked note is laid out for a full-width sheet; narrower, it's one.
+  root.classList.toggle("flat", W < 816);
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
 }
 
@@ -171,9 +183,8 @@ async function measureFont() {
 layout();
 const idle = window.requestIdleCallback ?? ((cb) => setTimeout(cb, 200));
 measureFont().then(() => {
+  underline(sheet);
   root.classList.add("ready");
-  // A blank draft sheet is Brandon's draft with his key, anyone else's own
-  // page without it.
   wallPage();
   if (drafting) startDraft({ sheet, untilt });
   else {
@@ -284,7 +295,7 @@ function prefetchInk(path) {
       const el = sheet.cloneNode(false);
       el.removeAttribute("id");
       el.removeAttribute("style");
-      el.classList.remove("inked");
+      el.className = page.cls;
       el.inert = true;
       el.innerHTML = page.html;
       Object.assign(el.style, { position: "absolute", left: "0", top: "0", visibility: "hidden" });
@@ -397,7 +408,7 @@ function fetchPage(path) {
         const doc = new DOMParser().parseFromString(html, "text/html");
         const next = doc.getElementById("sheet");
         if (!next) throw new Error(`no #sheet in ${path}`);
-        return { title: doc.title, html: next.innerHTML, rel: relOf(doc) };
+        return { title: doc.title, html: next.innerHTML, cls: next.className, rel: relOf(doc) };
       });
     req.catch(() => pages.delete(path));
     pages.set(path, req);
@@ -500,7 +511,9 @@ function jumpScroll(y) {
 }
 
 function swap(page, path) {
+  sheet.className = page.cls;
   sheet.innerHTML = page.html;
+  underline(sheet);
   document.title = page.title;
   mainSeed = seedFor(path);
   setTilt(path);
@@ -552,9 +565,10 @@ let under = null;
 
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
-function makeFlip(html, rect, seed, inkTex) {
+function makeFlip(html, cls, rect, seed, inkTex) {
   const el = sheet.cloneNode(false);
   el.removeAttribute("id");
+  el.className = cls;
   el.classList.toggle("inked", !!inkTex);
   el.classList.add("flip");
   el.setAttribute("aria-hidden", "true");
@@ -564,7 +578,7 @@ function makeFlip(html, rect, seed, inkTex) {
   document.body.append(el);
   rect.h ??= el.offsetHeight;
   el.style.height = `${rect.h}px`;
-  return { el, rect, seed, ink: inkTex, tilt: parseFloat(el.style.getPropertyValue("--tilt")) || 0, F: [0, 0], n: [0, 1], R: 0 };
+  return { el, rect, seed, ink: inkTex, stack: stackOf(el), tilt: parseFloat(el.style.getPropertyValue("--tilt")) || 0, F: [0, 0], n: [0, 1], R: 0 };
 }
 
 function endFlip() {
@@ -672,7 +686,7 @@ async function go(path, push, dir = dirTo(path)) {
 
   if (dir > 0) {
     // Forward: the current page is turned over, the next one is beneath.
-    flip = makeFlip(sheet.innerHTML, { x: r.left, y: r.top, w: r.width, h: r.height }, mainSeed, mainInk);
+    flip = makeFlip(sheet.innerHTML, sheet.className, { x: r.left, y: r.top, w: r.width, h: r.height }, mainSeed, mainInk);
     swap(page, path);
     jumpScroll(0);
     anim = { start: performance.now(), dur, step: (t) => setFold(easeInOut(t)), done: endFlip };
@@ -680,7 +694,7 @@ async function go(path, push, dir = dirTo(path)) {
     // Back: the previous page is turned back down on top, landing where a
     // page sits at the top of the document while the one beneath scrolls up.
     const top0 = r.top + window.scrollY;
-    flip = makeFlip(page.html, { x: r.left, y: top0, w: r.width }, seedFor(path), ink?.get(inkKey(path)));
+    flip = makeFlip(page.html, page.cls, { x: r.left, y: top0, w: r.width }, seedFor(path), ink?.get(inkKey(path)));
     flip.el.style.setProperty("--tilt", `${tiltFor(path)}rad`);
     flip.tilt = tiltFor(path);
     target = 0;
@@ -758,7 +772,7 @@ function pickUp(side) {
   const r = sheetRect();
   fetchPage(to).catch(() => {});
   prefetchInk(to);
-  flip = { el: null, rect: { x: r.left, y: r.top, w: r.width, h: r.height }, seed: mainSeed, ink: mainInk, tilt: tiltFor(shownPath), F: [0, 0], n: [0, 1], R: 0 };
+  flip = { el: null, rect: { x: r.left, y: r.top, w: r.width, h: r.height }, seed: mainSeed, ink: mainInk, stack: stackOf(sheet), tilt: tiltFor(shownPath), F: [0, 0], n: [0, 1], R: 0 };
   under = { seed: seedFor(to), path: to };
   // The very corner, a hair in so its fold never lands exactly on an edge.
   const G = [side === "left" ? 1 : r.width - 1, r.height - 1];
@@ -1034,6 +1048,8 @@ function frame(now) {
       fold: flip ? [...flip.F, ...flip.n] : [0, 0, 0, 1],
       curl: flip?.R ?? 0,
       flipInfo: flip ? [1, flip.seed] : [0, 0],
+      stack: under ? [0, 0] : stackOf(sheet),
+      stackFlip: flip?.stack ?? [0, 0],
       tilt: [tiltFor(under ? under.path : shownPath), flip?.tilt ?? 0],
       rule: [L, n0 * L, u * 0.25, mx],
       hole: [geo.holeX, geo.holeR, u * 4.25, showHoles ? 1 : 0],

@@ -139,6 +139,8 @@ uniform sampler2D uInkPrev; // the page above in the pile, whose writing pressed
 uniform vec2 uPrevSize;
 uniform sampler2D uDoodle;  // pencil drawn on the resting sheet by the reader (doodle.js)
 uniform vec2 uDoodleSize;   // CSS px; 0 = none
+uniform vec2 uStack;        // resting sheet stacked as several: each one's height, the gap between (0 = one)
+uniform vec2 uStackF;       // the same for the sheet being turned
 out vec4 o;
 
 const float T = 1024.0;
@@ -306,11 +308,13 @@ float restLift(vec2 q, vec2 hs, float seed) {
 // into the paper here so it can sit in the tooth and catch the light;
 // inkAmt below 1 shows it faintly, as writing seen through from the back.
 // prevInk is the writing on the page that lay on top, pressed in as grooves.
+// yo: how far down a stack this sheet lies, where its writing is read from.
 Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lamp, float px,
-            sampler2D inkTex, vec2 inkSize, float inkAmt, sampler2D prevInk, vec2 prevSize, float doodleOn) {
+            sampler2D inkTex, vec2 inkSize, float inkAmt, sampler2D prevInk, vec2 prevSize, float doodleOn, float yo) {
   Sheet o;
   vec2 hs = r.zw;
   vec2 q = p - r.xy + hs;   // sheet-local, origin top-left
+  vec2 qi = q + vec2(0.0, yo);
   // Guillotine-cut edges waver a hair, and the corners aren't needle sharp.
   float rc = 1.4;
   float wob = (texture(uTex, vec2((q.x + q.y) / 1900.0, seed * 0.137)).b - 0.5) * 0.7;
@@ -395,7 +399,7 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
   // ---- pencil ----
   float graphite = 0.0;
   if (inkSize.x > 0.0) {
-    vec2 uv = q / inkSize;
+    vec2 uv = qi / inkSize;
     vec4 k = texture(inkTex, uv);
     // Graphite only marks the peaks of the tooth under light pressure, so
     // strokes are flecked with paper; pressed harder, it fills the valleys.
@@ -404,7 +408,7 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
     vec3 c = k.rgb / max(k.a, 1e-4);
     // A hand resting on the page smears the odd line a little to the right.
     float Lr = uRule.x;
-    float row = floor(q.y / Lr);
+    float row = floor(qi.y / Lr);
     float smearOn = step(0.72, hash12(vec2(row, seed + 2.7)));
     vec2 tx = 1.0 / inkSize;
     float smear = (texture(inkTex, uv - tx * vec2(5.0, -1.0)).a + texture(inkTex, uv - tx * vec2(12.0, -2.0)).a) * 0.5;
@@ -415,7 +419,7 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
   }
   // A reader's doodles, laid into the tooth the same way.
   if (doodleOn > 0.5 && uDoodleSize.x > 0.0) {
-    vec4 k = texture(uDoodle, q / uDoodleSize);
+    vec4 k = texture(uDoodle, qi / uDoodleSize);
     float peaks = smoothstep(0.3, 0.68, s.r + (hash12(floor(sq * 2.0)) - 0.5) * 0.3);
     float a = min(1.0, k.a * 1.15) * mix(mix(0.6, 1.0, peaks), 1.0, smoothstep(0.5, 0.95, k.a));
     alb *= mix(vec3(1.0), k.rgb / max(k.a, 1e-4), a);
@@ -450,7 +454,7 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
   // lit on the side away from the light and shaded on the near side.
   if (prevSize.x > 0.0) {
     // Wide taps: a groove under paper is soft, never a crisp copy.
-    vec2 uv = q / prevSize;
+    vec2 uv = qi / prevSize;
     vec2 e = 2.6 / prevSize;
     float gx = texture(prevInk, uv + vec2(e.x, 0.0)).a - texture(prevInk, uv - vec2(e.x, 0.0)).a;
     float gy = texture(prevInk, uv + vec2(0.0, e.y)).a - texture(prevInk, uv - vec2(0.0, e.y)).a;
@@ -476,6 +480,34 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
     float spec = pow(max(dot(normalize(vec3(n.xy * 3.0, 1.0)), H), 0.0), 64.0);
     o.col += vec3(0.62, 0.64, 0.68) * spec * graphite * 0.7 * mix(1.0, 0.5, uDark);
   }
+  return o;
+}
+
+// A note that runs over several sheets lies as a stack down the desk, one
+// under the next with a little desk between. r spans the whole stack and st
+// is each sheet's height and the gap (st.x = 0: just the one sheet). Each is
+// drawn in its own frame, with its own edges, shadow, rules and grain, and
+// its writing read from where it falls in the stack's.
+Sheet stacked(vec2 p, vec4 r, vec2 st, float seed, vec3 L, vec3 light, float sun, float lamp, float px,
+              sampler2D inkTex, vec2 inkSize, float inkAmt, sampler2D prevInk, vec2 prevSize, float doodleOn) {
+  if (st.x <= 0.0) return sheet(p, r, seed, L, light, sun, lamp, px, inkTex, inkSize, inkAmt, prevInk, prevSize, doodleOn, 0.0);
+  float P = st.x + st.y;
+  float n = max(1.0, floor((2.0 * r.w + st.y) / P + 0.5));
+  float y = p.y - (r.y - r.w);
+  float i = clamp(floor(y / P), 0.0, n - 1.0);
+  float top = r.y - r.w;
+  Sheet a = sheet(p, vec4(r.x, top + i * P + st.x * 0.5, r.z, st.x * 0.5), seed + i * 17.0, L, light, sun, lamp, px,
+                  inkTex, inkSize, inkAmt, prevInk, prevSize, doodleOn, i * P);
+  // Near a gap, the neighbour's edge and shadow reach across it too.
+  float local = y - i * P;
+  float j = local > st.x - 90.0 ? i + 1.0 : local < 90.0 ? i - 1.0 : -1.0;
+  if (j < 0.0 || j > n - 1.0) return a;
+  Sheet b = sheet(p, vec4(r.x, top + j * P + st.x * 0.5, r.z, st.x * 0.5), seed + j * 17.0, L, light, sun, lamp, px,
+                  inkTex, inkSize, inkAmt, prevInk, prevSize, doodleOn, j * P);
+  Sheet o;
+  o.a = clamp(a.a + b.a, 0.0, 1.0);
+  o.col = (a.col * a.a + b.col * b.a) / max(a.a + b.a, 1e-4);
+  o.under = 1.0 - (1.0 - a.under) * (1.0 - b.under);
   return o;
 }
 
@@ -550,8 +582,8 @@ void main() {
   // ---- the pile: resting sheet, then the one in flight ----
   // Each sheet is drawn in its own frame, turned by its tilt, with the
   // light turned to match.
-  Sheet a = sheet(untilt(p, uMain.xy, uTilt.x), uMain, uMainSeed, tiltL(L, uTilt.x), light, sun, lamp, px,
-                  uInkMain, uInkSize.xy, 1.0, uInkPrev, uPrevSize, 1.0);
+  Sheet a = stacked(untilt(p, uMain.xy, uTilt.x), uMain, uStack, uMainSeed, tiltL(L, uTilt.x), light, sun, lamp, px,
+                    uInkMain, uInkSize.xy, 1.0, uInkPrev, uPrevSize, 1.0);
   col = mix(col * (1.0 - a.under * shadowK), a.col, a.a);
 
   // ---- page flip ----
@@ -616,7 +648,7 @@ void main() {
 
     // Face: flat before the fold, then rising up the near side of the bend.
     vec2 qF = foot + n * mix(dp, R * a, onRoll);
-    Sheet front = sheet(qF, uFlip, uFlipInfo.y, L, light, sun, lamp, px, uInkFlip, uInkSize.zw, 1.0, uInkFlip, vec2(0.0), 0.0);
+    Sheet front = stacked(qF, uFlip, uStackF, uFlipInfo.y, L, light, sun, lamp, px, uInkFlip, uInkSize.zw, 1.0, uInkFlip, vec2(0.0), 0.0);
     float litF = mix(1.0 - shadow, bendLight(vec3(-n * sin(a), cos(a)), L), onRoll);
     col = mix(col, front.col * litF, front.a * edge);
 
@@ -624,7 +656,7 @@ void main() {
     float aB = mix(PI, PI - a, onRoll);
     vec2 qB = foot + n * mix(PI * R - dp, R * aB, onRoll);
     // The writing on the face shows through faintly, mirrored.
-    Sheet back = sheet(qB, uFlip, uFlipInfo.y, L, light, sun, lamp, px, uInkFlip, uInkSize.zw, 0.08, uInkFlip, vec2(0.0), 0.0);
+    Sheet back = stacked(qB, uFlip, uStackF, uFlipInfo.y, L, light, sun, lamp, px, uInkFlip, uInkSize.zw, 0.08, uInkFlip, vec2(0.0), 0.0);
     float litB = bendLight(vec3(n * sin(aB), -cos(aB)), L);
     col = mix(col, back.col * litB, back.a * edge);
   }
@@ -702,7 +734,7 @@ export function createPaper(canvas) {
     const u = {};
     for (const name of [
       "uTex", "uRes", "uDpr", "uView", "uMain", "uMainSeed", "uTilt", "uFlip", "uFold", "uCurl", "uFlipInfo",
-      "uRule", "uHole", "uInch", "uMouse", "uTime", "uDark", "uBg", "uLight", "uDay", "uInkMain", "uInkFlip", "uInkSize", "uInkPrev", "uPrevSize", "uDoodle", "uDoodleSize",
+      "uRule", "uHole", "uInch", "uMouse", "uTime", "uDark", "uBg", "uLight", "uDay", "uInkMain", "uInkFlip", "uInkSize", "uInkPrev", "uPrevSize", "uDoodle", "uDoodleSize", "uStack", "uStackF",
     ]) {
       u[name] = gl.getUniformLocation(prog, name);
     }
@@ -798,6 +830,8 @@ export function createPaper(canvas) {
       gl.uniform1i(u.uBg, f.bg ?? 0);
       gl.uniform1i(u.uLight, f.light ?? 0);
       gl.uniform2f(u.uDay, ...(f.day ?? [0, 0]));
+      gl.uniform2f(u.uStack, ...(f.stack ?? [0, 0]));
+      gl.uniform2f(u.uStackF, ...(f.stackFlip ?? [0, 0]));
       const m = live(f.inkMain) ? f.inkMain : null;
       const k = live(f.inkFlip) ? f.inkFlip : null;
       gl.activeTexture(gl.TEXTURE1);

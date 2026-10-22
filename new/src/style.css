@@ -92,6 +92,21 @@ body {
 
 .sheet * { margin: 0; padding: 0; }
 
+/* A note that runs over several sheets: each .page is a sheet of its own,
+   stacked down the desk with a little of it showing between (paper.js draws
+   the paper to match). Narrower than a full sheet, the text wraps longer
+   than its sheet, so it's one long sheet instead (.flat, set by main.js). */
+.sheet.stacked:not(.flat *) { padding: 0; min-height: 0; }
+.sheet.stacked:not(.flat *) .page {
+  position: relative;
+  box-sizing: border-box;
+  height: var(--H-min);
+  padding: calc((var(--n0) - 1) * var(--L)) var(--pad-r) var(--pad-b) var(--pad-l);
+}
+.sheet.stacked:not(.flat *) .page + .page { margin-top: var(--stack-gap); }
+.flat .sheet .page + .page { margin-top: var(--L); }
+.flat .sheet .page + .page > .head { display: none; }
+
 /* Every line box is one rule tall. The transform drops each so the font's
    baseline lands --gap above its rule:
      baseline in a box of height L = L/2 + (asc - desc) * fs / 2            */
@@ -165,16 +180,19 @@ body {
   color: #2a2b31;
 }
 
+/* Pointed at, a link is underlined by hand in its own colour, drawn in
+   left to right (underline.js draws each one's line into --line). */
 .sheet a {
   color: var(--pen);
   text-decoration: none;
-  background: linear-gradient(var(--marker), var(--marker)) no-repeat 0 72% / 0% 0.62em;
-  transition: background-size 0.35s cubic-bezier(0.3, 0.7, 0.2, 1);
-  border-radius: 2px;
+  background: var(--line, none) no-repeat 0 calc(var(--asc) * 1em + 0.2em - 4px) / 0% 8px;
+  transition: background-size 0.3s cubic-bezier(0.3, 0.7, 0.2, 1);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 .sheet a:hover,
 .sheet a:focus-visible {
-  background-size: 100% 0.62em;
+  background-size: 100% 8px;
   outline: none;
 }
 
@@ -432,7 +450,6 @@ body {
   padding: 0 4px;
   cursor: pointer;
 }
-.sheet a.tool:hover, .sheet a.tool:focus-visible { background-size: 100% 0.62em; }
 /* On: the word circled in pencil, the loop overshooting where it closes. */
 .sheet .tool[data-tool="doodle"] { position: relative; }
 .doodling .sheet .tool[data-tool="doodle"]::after {
@@ -455,7 +472,7 @@ body {
 }
 .doodling.has-doodle .sheet .tool[data-tool="pin"] { visibility: visible; }
 @media (max-width: 640px) { .sheet .tools { display: none; } }
-.drafting .sheet .tools { display: none; }
+.drafting .sheet .tools, .drafting .sheet .leave { display: none; }
 
 /* Doodling: the sheet takes a pencil (see doodle.js). */
 .doodling .sheet { cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
