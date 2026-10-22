@@ -40,13 +40,19 @@ window.addEventListener("pageshow", (e) => {
 // ---- surroundings --------------------------------------------------------
 // What the sheet lies on and how the room is lit, as indexes into the
 // shader's desk() and lights. ?bg= and ?light= pick them; ?tune adds a
-// small panel to try them live (the choice is remembered on this device).
+// small panel to try them live. Lighting is chosen afresh on each load;
+// the explicit background and theme choices are remembered on this device.
 const BACKGROUNDS = ["plaster", "oak", "walnut", "linen", "concrete", "slate", "white"];
 const LIGHTS = ["window", "overcast", "golden", "blinds", "lamp", "night", "studio", "moon"];
 const scene = { bg: null, light: null, theme: null };
 try {
   Object.assign(scene, JSON.parse(localStorage.getItem("scene") || "{}"));
 } catch {}
+const CYCLE_LIGHTS = ["window", "golden", "blinds", "moon"];
+scene.light = CYCLE_LIGHTS[Math.floor(Math.random() * CYCLE_LIGHTS.length)];
+if (!["light", "dark"].includes(scene.theme)) scene.theme = null;
+let preferredTheme = scene.theme;
+const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 {
   const q = new URLSearchParams(location.search);
   if (BACKGROUNDS.includes(q.get("bg"))) scene.bg = q.get("bg");
@@ -56,17 +62,17 @@ try {
 }
 if (!["light", "dark"].includes(scene.theme)) scene.theme = null;
 const syncTheme = () => {
-  root.dataset.theme = scene.theme ?? "light";
+  root.dataset.theme = scene.theme ?? (systemTheme.matches ? "dark" : "light");
 };
 syncTheme();
 const isDark = () => root.dataset.theme === "dark";
 const saveScene = () => {
   try {
-    localStorage.setItem("scene", JSON.stringify(scene));
+    localStorage.setItem("scene", JSON.stringify({ bg: scene.bg, theme: preferredTheme }));
   } catch {}
 };
-// New visitors see plaster and blinds. A saved or query-string choice still
-// wins; the dark toggle changes the desk to slate. The sun's position and
+// The desk follows the system theme until the visitor chooses light or dark.
+// Query parameters still pin the scene for screenshots. The sun's position and
 // warmth still move through the day. ?hour=18 previews that movement.
 const hourNow = () => {
   const q = parseFloat(new URLSearchParams(location.search).get("hour"));
@@ -82,8 +88,7 @@ const dayNow = () => {
   return [x, Math.min(1, Math.abs(h - 13) / 6) ** 1.5];
 };
 const bgName = () => scene.bg ?? (isDark() ? "slate" : "plaster");
-const lightName = () => scene.light ?? "blinds";
-const CYCLE_LIGHTS = ["window", "golden", "blinds", "moon"];
+const lightName = () => scene.light;
 
 function syncSceneControls() {
   const theme = sheet.querySelector('[data-scene-control="theme"]');
@@ -102,12 +107,19 @@ function syncSceneControls() {
   }
 }
 syncSceneControls();
+systemTheme.addEventListener("change", () => {
+  if (scene.theme !== null) return;
+  syncTheme();
+  syncSceneControls();
+  dirty = true;
+});
 
 sheet.addEventListener("click", (e) => {
   const button = e.target.closest?.("button[data-scene-control]");
   if (!button || !sheet.contains(button)) return;
   if (button.dataset.sceneControl === "theme") {
     scene.theme = isDark() ? "light" : "dark";
+    preferredTheme = scene.theme;
     scene.bg = null;
     syncTheme();
   } else {
