@@ -20,20 +20,20 @@
   /* Written by main.js from the sheet's width. These are the fallbacks. */
   --W: 816px;
   --L: 33px;
-  --n0: 3;
+  --n0: 2;
   --pad-l: 136px;
   --pad-r: 40px;
   --pad-b: 99px;
   --H-min: 1056px;
   --gutter: 40px;
-  --top-gap: 72px;
+  --top-gap: 44px;
   --gap: 3px;
 
   /* Font ascent/descent as a fraction of the em, measured at runtime. */
   --asc: 0.9;
   --desc: 0.25;
 
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 html {
@@ -41,10 +41,7 @@ html {
   -webkit-text-size-adjust: 100%;
   text-rendering: optimizeLegibility;
 }
-@media (prefers-color-scheme: dark) {
-  html:not([data-theme="light"]) { background: #1b1a19; }
-}
-html[data-theme="dark"] { background: #1b1a19; }
+html[data-theme="dark"] { background: #1b1a19; color-scheme: dark; }
 
 body {
   margin: 0;
@@ -54,8 +51,11 @@ body {
 #gl {
   position: fixed;
   inset: 0;
-  width: 100vw;
+  width: 100%;
+  /* Keep the WebGL image at one size as mobile Safari's toolbar collapses.
+     The visible viewport simply reveals more of the already drawn canvas. */
   height: 100vh;
+  height: 100lvh;
   display: block;
 }
 
@@ -87,7 +87,13 @@ body {
   transition: opacity 0.6s ease;
 }
 .ready .sheet { opacity: 1; }
-.sheet.inked { -webkit-text-fill-color: transparent; }
+.sheet.inked {
+  -webkit-text-fill-color: transparent;
+  /* The WebGL paper already blends the Graphite into its tooth. Once the
+     DOM text is hidden, an extra full-sheet compositing blend only makes
+     each mobile scroll frame more expensive. */
+  mix-blend-mode: normal;
+}
 .sheet.inked strong { background: none; }
 
 .sheet * { margin: 0; padding: 0; }
@@ -120,6 +126,7 @@ body {
 }
 
 .head {
+  position: relative;
   display: flex;
   justify-content: space-between;
   gap: 0 1em;
@@ -129,12 +136,64 @@ body {
 /* A long title wraps onto the next rule; the right-hand side never splits. */
 .head > :last-child:not(:first-child) { white-space: nowrap; margin-left: auto; }
 
+/* Two margin doodles on the top rule. Their hit areas extend into the empty
+   space around the line without changing the measured height of the sheet. */
+.scene-controls {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+}
+.scene-control {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 7px;
+  border: 0;
+  background: none;
+  color: #2a2b31;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.scene-control .icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  background: currentColor;
+  /* Four-times-size renders of Brandon's drawings in src/icon-sources/. */
+  -webkit-mask: var(--icon-image) center / contain no-repeat;
+  mask: var(--icon-image) center / contain no-repeat;
+}
+.icon-window { --icon-image: url("/icons/window-f0436b4f.webp"); }
+.icon-moon { --icon-image: url("/icons/moon-b2637829.webp"); }
+.icon-sun { --icon-image: url("/icons/sun-5712f2cb.webp"); }
+.scene-control .icon-window { width: 24px; height: 24px; }
+.scene-control:hover,
+.scene-control:focus-visible { color: var(--pen); }
+.scene-control:focus-visible { outline: 1px dashed currentColor; outline-offset: -4px; }
+.scene-theme .icon-sun,
+html[data-theme="dark"] .scene-theme .icon-moon { display: none; }
+html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
+
+.sheet .head h1 {
+  margin: 0;
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  transform: none;
+}
+
 .sheet h1,
 .sheet h2 {
   margin-top: var(--L);
 }
 
 .sheet .head + * { margin-top: var(--L); }
+.sheet .no-break { white-space: nowrap; }
 .sheet p + p,
 .sheet p + ul { margin-top: var(--L); }
 .sheet h1 + p { margin-top: 0; }
@@ -165,7 +224,7 @@ body {
   color: #2a2b31;
   /* Brandon's own drawn arrow, turned to point into the corner. */
   transform: rotate(45deg);
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .sheet ul { list-style: none; }
@@ -180,21 +239,16 @@ body {
   color: #2a2b31;
 }
 
-/* Pointed at, a link is underlined by hand in its own colour, drawn in
-   left to right (underline.js draws each one's line into --line). */
+/* Text links use the same pencil as the writing, with the hand-drawn line
+   from underline.js visible even before the reader points at them. */
 .sheet a {
-  color: var(--pen);
+  color: inherit;
   text-decoration: none;
-  background: var(--line, none) no-repeat 0 calc(var(--asc) * 1em + 0.2em - 4px) / 0% 8px;
-  transition: background-size 0.3s cubic-bezier(0.3, 0.7, 0.2, 1);
+  background: var(--line, none) no-repeat 0 calc(var(--asc) * 1em + 0.2em - 4px) / 100% 8px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-.sheet a:hover,
-.sheet a:focus-visible {
-  background-size: 100% 8px;
-  outline: none;
-}
+.sheet a:focus-visible { outline: 1px dashed currentColor; outline-offset: 2px; }
 
 /* A highlighter pass, not bold — the pencil has no bold, and it shouldn't. */
 .sheet strong {
@@ -239,7 +293,11 @@ body {
 .grip.right { left: calc(50% + var(--W) / 2 - 74px); }
 .grabbing, .grabbing * { cursor: grabbing !important; user-select: none; }
 
-::selection { background: var(--marker); color: inherit; }
+::selection {
+  background: var(--marker);
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
+}
 
 /* ?tune: a small panel for trying desks and lights (see main.js). */
 .tune {
@@ -401,6 +459,13 @@ body {
 .draft-row { display: flex; justify-content: flex-end; gap: 4px; }
 .draft-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .draft-error { padding: 4px 6px; color: #ffb4a8; }
+@media (max-width: 640px) {
+  .draft-tools { max-width: calc(100vw - 16px); font-size: 15px; }
+  .draft-tools button { min-height: 36px; }
+  .draft-compose { width: min(280px, calc(100vw - 32px)); }
+  .draft-compose textarea,
+  .draft-compose input { font-size: 16px; }
+}
 
 /* A comment, opened: a sticky note stuck on the page. */
 .draft-note {
@@ -471,12 +536,80 @@ body {
   color: #55565d;
 }
 .doodling.has-doodle .sheet .tool[data-tool="pin"] { visibility: visible; }
-@media (max-width: 640px) { .sheet .tools { display: none; } }
+@media (max-width: 640px) {
+  .sheet .tools { display: none; }
+  .wall-sheet .tools {
+    position: static;
+    width: auto;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    margin: var(--L) 0 0;
+  }
+  .wall-sheet .tool[data-tool="pin"] { position: static; display: none; }
+  .doodling.has-doodle .wall-sheet .tool[data-tool="pin"] { display: inline; }
+}
 .drafting .sheet .tools, .drafting .sheet .leave { display: none; }
+
+/* The save action stays in view while someone draws, including on phones. */
+.doodle-bar {
+  position: fixed;
+  z-index: 14;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%) rotate(-1deg);
+  display: none;
+  align-items: center;
+  gap: 16px;
+  max-width: calc(100vw - 24px);
+  padding: 10px 16px;
+  border: 1px solid #c4bcae;
+  background: #f7f3e9;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 0.18);
+  color: var(--ink);
+  font: 17px/1.1 var(--font);
+  white-space: nowrap;
+}
+.doodle-bar.active { display: flex; }
+body:has(.pin-note) .doodle-bar { display: none; }
+.doodle-bar:not(.active) .doodle-help,
+.doodle-bar:not(.active) [data-tool="pin"],
+.doodle-bar:not(.active) [data-tool="doodle"]:last-child,
+.doodle-bar.active [data-tool="doodle"]:first-child { display: none; }
+.doodle-bar button {
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.doodle-bar [data-tool="pin"] { text-decoration: underline; text-underline-offset: 4px; }
+.doodle-bar [data-tool="pin"]:disabled { opacity: 0.45; cursor: default; }
+.doodle-bar [data-tool="doodle"]:last-child { color: #696b70; }
+.doodle-bar button:focus-visible { outline: 1px dashed currentColor; outline-offset: 3px; }
+@media (max-width: 640px) {
+  .doodle-bar, .doodle-bar.active { display: none; }
+}
 
 /* Doodling: the sheet takes a pencil (see doodle.js). */
 .doodling .sheet { cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
 .doodling .sheet a { cursor: pointer; }
+
+/* Only Brandon sees these outlines while arranging approved doodles. */
+.sheet .doodle-handle {
+  position: absolute;
+  z-index: 6;
+  padding: 0;
+  border: 1.5px dashed #5a5146;
+  border-radius: 6px;
+  background: rgb(255 240 154 / 0.12);
+  cursor: grab;
+  touch-action: none;
+}
+.sheet .doodle-handle:active { cursor: grabbing; }
+.sheet .doodle-handle:focus-visible { outline: 2px solid #5a5146; outline-offset: 2px; }
 
 /* What visitors write, in Brandon's plain Pencil as it is rather than inked
    in Graphite (see wall.js), and always signed. */
@@ -519,6 +652,15 @@ body {
   color: inherit;
   outline: none;
 }
+@media (max-width: 640px) {
+  .pin-note {
+    top: calc(18px + env(safe-area-inset-top));
+    bottom: auto;
+    left: 50%;
+    max-width: calc(100vw - 64px);
+    transform: translateX(-50%) rotate(-1.4deg);
+  }
+}
 /* Brandon's queue on /wall/. */
 .wall-queue {
   position: fixed;
@@ -535,10 +677,30 @@ body {
   color: #eee;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
+.wall-queue-arranging {
+  top: auto;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: min(260px, calc(100vw - 52px));
+  max-height: 120px;
+}
+.wall-queue-arranging > :not(.wall-queue-heading):not(.wall-arrange-hint) { display: none; }
 .wall-queue h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+.wall-queue-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 18px; }
+.wall-queue-heading h2 { margin-bottom: 8px; }
+.wall-arrange {
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.wall-arrange-hint { margin: 0 0 8px; opacity: 0.75; }
+.wall-arrange-hint[hidden] { display: none; }
 .wall-item { padding: 10px 0; border-top: 1px solid rgb(255 255 255 / 0.12); }
 .wall-meta { margin: 0 0 6px; opacity: 0.7; }
 .wall-text { margin: 0 0 8px; white-space: pre-wrap; }
+.wall-quote { margin: 0 0 6px; font-style: italic; opacity: 0.7; }
 .wall-item canvas { display: block; width: 248px; margin-bottom: 8px; border-radius: 4px; }
 .wall-actions { display: flex; gap: 8px; }
 .wall-actions button {

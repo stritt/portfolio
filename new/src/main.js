@@ -9,11 +9,6 @@ const root = document.documentElement;
 const sheet = document.getElementById("sheet");
 const canvas = document.getElementById("gl");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-const darkMq = matchMedia("(prefers-color-scheme: dark)");
-// ?theme=dark|light overrides the system setting (handy for previewing).
-const forced = new URLSearchParams(location.search).get("theme");
-if (forced) root.dataset.theme = forced;
-const isDark = () => (forced ? forced === "dark" : darkMq.matches);
 // Punched holes are off by default; ?holes brings them back to compare.
 const showHoles = new URLSearchParams(location.search).has("holes");
 // ?slow (or ?slow=N) plays page transitions N times slower, for tuning.
@@ -33,7 +28,7 @@ const drafting = draftParam !== null && location.pathname.startsWith("/notes/");
 // small panel to try them live (the choice is remembered on this device).
 const BACKGROUNDS = ["plaster", "oak", "walnut", "linen", "concrete", "slate", "white"];
 const LIGHTS = ["window", "overcast", "golden", "blinds", "lamp", "night", "studio", "moon"];
-const scene = { bg: null, light: null };
+const scene = { bg: null, light: null, theme: null };
 try {
   Object.assign(scene, JSON.parse(localStorage.getItem("scene") || "{}"));
 } catch {}
@@ -41,31 +36,29 @@ try {
   const q = new URLSearchParams(location.search);
   if (BACKGROUNDS.includes(q.get("bg"))) scene.bg = q.get("bg");
   if (LIGHTS.includes(q.get("light"))) scene.light = q.get("light");
+  // Query parameters still work as one-visit previews.
+  if (["light", "dark"].includes(q.get("theme"))) scene.theme = q.get("theme");
 }
-// Unless one's chosen, the desk follows the theme (plaster in daylight,
-// slate when it's dark) and the light follows the visitor's clock: one of
-// the lights that suits the hour, picked at random each visit, with the sun
-// swinging across and warming as the day goes on. ?hour=18 previews.
+if (!["light", "dark"].includes(scene.theme)) scene.theme = null;
+const syncTheme = () => {
+  root.dataset.theme = scene.theme ?? "light";
+};
+syncTheme();
+const isDark = () => root.dataset.theme === "dark";
+const saveScene = () => {
+  try {
+    localStorage.setItem("scene", JSON.stringify(scene));
+  } catch {}
+};
+// New visitors see plaster and blinds. A saved or query-string choice still
+// wins; the dark toggle changes the desk to slate. The sun's position and
+// warmth still move through the day. ?hour=18 previews that movement.
 const hourNow = () => {
   const q = parseFloat(new URLSearchParams(location.search).get("hour"));
   if (q >= 0 && q < 24) return q;
   const d = new Date();
   return d.getHours() + d.getMinutes() / 60;
 };
-const LIGHTS_BY_HOUR = [
-  [5, ["moon"]],
-  [7.5, ["window"]],
-  [11, ["window", "blinds"]],
-  [15, ["blinds", "window"]],
-  [17.5, ["window", "blinds", "golden"]],
-  [20.5, ["golden"]],
-  [24, ["moon"]],
-];
-const timeLight = (() => {
-  const h = hourNow();
-  const choices = LIGHTS_BY_HOUR.find(([end]) => h < end)[1];
-  return choices[Math.floor(Math.random() * choices.length)];
-})();
 // Sun position: -1 first thing in the morning to 1 at dusk; and how warm
 // it's turned, from white at midday to amber at either end.
 const dayNow = () => {
@@ -74,7 +67,41 @@ const dayNow = () => {
   return [x, Math.min(1, Math.abs(h - 13) / 6) ** 1.5];
 };
 const bgName = () => scene.bg ?? (isDark() ? "slate" : "plaster");
-const lightName = () => scene.light ?? timeLight;
+const lightName = () => scene.light ?? "blinds";
+const CYCLE_LIGHTS = ["window", "golden", "blinds", "moon"];
+
+function syncSceneControls() {
+  const theme = sheet.querySelector('[data-scene-control="theme"]');
+  const light = sheet.querySelector('[data-scene-control="light"]');
+  if (theme) {
+    const label = `Switch to ${isDark() ? "light" : "dark"} background`;
+    theme.setAttribute("aria-label", label);
+    theme.title = label;
+  }
+  if (light) {
+    const current = lightName();
+    const next = CYCLE_LIGHTS[(CYCLE_LIGHTS.indexOf(current) + 1) % CYCLE_LIGHTS.length];
+    const label = `Lighting: ${current}. Change to ${next}`;
+    light.setAttribute("aria-label", label);
+    light.title = label;
+  }
+}
+syncSceneControls();
+
+sheet.addEventListener("click", (e) => {
+  const button = e.target.closest?.("button[data-scene-control]");
+  if (!button || !sheet.contains(button)) return;
+  if (button.dataset.sceneControl === "theme") {
+    scene.theme = isDark() ? "light" : "dark";
+    scene.bg = null;
+    syncTheme();
+  } else {
+    scene.light = CYCLE_LIGHTS[(CYCLE_LIGHTS.indexOf(lightName()) + 1) % CYCLE_LIGHTS.length];
+  }
+  saveScene();
+  syncSceneControls();
+  dirty = true;
+});
 
 function tunePanel() {
   const panel = document.createElement("div");
@@ -87,9 +114,8 @@ function tunePanel() {
       b.textContent = name;
       b.onclick = () => {
         scene[key] = name;
-        try {
-          localStorage.setItem("scene", JSON.stringify(scene));
-        } catch {}
+        saveScene();
+        syncSceneControls();
         sync();
         dirty = true;
       };
@@ -114,6 +140,7 @@ if (new URLSearchParams(location.search).has("tune")) tunePanel();
 // below a comfortable line of text.
 
 const geo = {};
+let layoutWidth = 0;
 const STACK_GAP = 44;   // desk between stacked sheets, CSS px
 
 // A note stacked over several sheets: each sheet's height and the gap
@@ -125,11 +152,12 @@ function stackOf(el) {
 
 function layout() {
   const vw = root.clientWidth;
+  layoutWidth = vw;
   const gutter = vw < 640 ? 12 : 40;
   const W = Math.min(816, vw - gutter * 2);
   const u = W / 8.5;
   const L = Math.max(28, Math.round((u * 11) / 32));
-  const n0 = Math.max(2, Math.ceil((u * 0.95) / L));
+  const n0 = Math.max(1, Math.ceil((u * 0.95) / L) - 1);
   const mx = Math.round(Math.max(46, u * 1.25));
 
   Object.assign(geo, {
@@ -152,7 +180,7 @@ function layout() {
     "--pad-b": `${(Math.ceil((u * 0.45) / L) + 1) * L}px`,
     "--H-min": `${(W * 11) / 8.5}px`,
     "--gutter": `${gutter}px`,
-    "--top-gap": `${vw < 640 ? 16 : 72}px`,
+    "--top-gap": `${vw < 640 ? 12 : 44}px`,
     "--gap": `${Math.max(1, L * 0.04)}px`,
     "--stack-gap": `${STACK_GAP}px`,
   };
@@ -226,15 +254,30 @@ if (!paper) {
 }
 
 let dpr = 1;
+let viewWidth = 0;
+let viewHeight = 0;
+const coarsePhone = matchMedia("(pointer: coarse) and (max-width: 640px)");
 function resize() {
-  layout();
+  const width = root.clientWidth;
+  if (width !== layoutWidth) layout();
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  paper?.resize(root.clientWidth, window.innerHeight, dpr);
+  // Safari's visible height changes as its toolbar hides. The canvas uses
+  // the stable large viewport; size the backing store from that same CSS box
+  // so its ink and paper are never stretched by a height-only resize.
+  const height = canvas.getBoundingClientRect().height;
+  const geometryChanged = width !== viewWidth || height !== viewHeight ||
+      canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr);
+  if (paper && geometryChanged) {
+    viewWidth = width;
+    viewHeight = height;
+    paper.resize(width, height, dpr);
+  }
   dirty = true;
   // Ink is drawn for one sheet width and pixel ratio; redraw for the new one
   // once the resize settles, showing the plain cut meanwhile.
-  // A sheet in hand is dropped back flat.
-  if (drag) {
+  // Safari fires resize as its browser chrome moves. Only a real canvas or
+  // layout change should make a held corner fall out of the reader's hand.
+  if (drag && geometryChanged) {
     drag = null;
     endFlip();
     document.body.classList.remove("grabbing");
@@ -307,6 +350,10 @@ function prefetchInk(path) {
 }
 
 function prefetchLinkedInk() {
+  // On a phone, painting several offscreen Graphite pages competes with
+  // scrolling and is especially costly for a long note. Draw only the page
+  // being read; a corner pickup or link hover can request the next one.
+  if (coarsePhone.matches) return;
   // The neighbours first: they're what a grabbed sheet reveals.
   for (const path of [rel.next, rel.prev]) if (path) prefetchInk(path);
   for (const a of sheet.querySelectorAll("a[href]")) {
@@ -321,6 +368,7 @@ function prefetchLinkedInk() {
 
 let target = window.scrollY;
 let current = target;
+let lastScrollAt = -Infinity;
 const maxScroll = () => root.scrollHeight - window.innerHeight;
 
 window.addEventListener(
@@ -340,6 +388,7 @@ window.addEventListener(
   () => {
     // Keyboard, scrollbar, touch, find-in-page: adopt their position.
     if (Math.abs(window.scrollY - current) > 1.5) target = current = window.scrollY;
+    lastScrollAt = performance.now();
     dirty = true;
   },
   { passive: true },
@@ -395,6 +444,12 @@ const relOf = (doc) => ({
   next: doc.querySelector('link[rel="next"]')?.getAttribute("href") ?? null,
 });
 let rel = relOf(document);
+const pageHeadSelector = 'meta[name="description"], meta[name="robots"], meta[name^="twitter:"], meta[property^="og:"], meta[property^="article:"], link[rel="canonical"], link[rel="prev"], link[rel="next"], script[type="application/ld+json"]';
+const pageHead = (doc) => [...doc.head.querySelectorAll(pageHeadSelector)].map((tag) => tag.outerHTML).join("");
+function syncPageHead(page) {
+  document.head.querySelectorAll(pageHeadSelector).forEach((tag) => tag.remove());
+  document.head.insertAdjacentHTML("beforeend", page.head);
+}
 
 const pages = new Map();
 function fetchPage(path) {
@@ -408,7 +463,7 @@ function fetchPage(path) {
         const doc = new DOMParser().parseFromString(html, "text/html");
         const next = doc.getElementById("sheet");
         if (!next) throw new Error(`no #sheet in ${path}`);
-        return { title: doc.title, html: next.innerHTML, cls: next.className, rel: relOf(doc) };
+        return { title: doc.title, html: next.innerHTML, cls: next.className, rel: relOf(doc), head: pageHead(doc) };
       });
     req.catch(() => pages.delete(path));
     pages.set(path, req);
@@ -513,6 +568,8 @@ function jumpScroll(y) {
 function swap(page, path) {
   sheet.className = page.cls;
   sheet.innerHTML = page.html;
+  syncPageHead(page);
+  syncSceneControls();
   underline(sheet);
   document.title = page.title;
   mainSeed = seedFor(path);
@@ -736,7 +793,11 @@ for (const side of ["left", "right"]) {
   });
   el.addEventListener("pointerleave", () => drag?.phase === "hover" && letGo(false));
   el.addEventListener("pointerdown", (e) => grab(side, e));
-  el.addEventListener("pointerup", () => drag?.phase === "hold" && release());
+  el.addEventListener("pointerup", (e) => {
+    if (drag?.phase !== "hold") return;
+    hold(e);
+    release(e);
+  });
   el.addEventListener("pointercancel", () => drag?.phase === "hold" && letGo(false));
 }
 
@@ -752,7 +813,6 @@ const unit = (v) => {
   const l = len2(v) || 1;
   return [v[0] / l, v[1] / l];
 };
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
 const clamp = (x, lo, hi) => Math.min(Math.max(x, lo), hi);
 
 // The pointer in the turning sheet's own frame, undoing its tilt.
@@ -768,11 +828,15 @@ function local(e) {
 // Pick up the sheet by a corner, with the next page lying squarely beneath.
 function pickUp(side) {
   const to = rel.next;
-  if (!to || anim || flip || !mainInk || !paper || reduced.matches) return null;
+  if (!to || anim || flip || !paper || reduced.matches) return null;
   const r = sheetRect();
   fetchPage(to).catch(() => {});
   prefetchInk(to);
-  flip = { el: null, rect: { x: r.left, y: r.top, w: r.width, h: r.height }, seed: mainSeed, ink: mainInk, stack: stackOf(sheet), tilt: tiltFor(shownPath), F: [0, 0], n: [0, 1], R: 0 };
+  // The plain cut may still be showing while Graphite renders. Carry a DOM
+  // copy through the fold in that case, as link-driven turns already do.
+  flip = mainInk
+    ? { el: null, rect: { x: r.left, y: r.top, w: r.width, h: r.height }, seed: mainSeed, ink: mainInk, stack: stackOf(sheet), tilt: tiltFor(shownPath), F: [0, 0], n: [0, 1], R: 0 }
+    : makeFlip(sheet.innerHTML, sheet.className, { x: r.left, y: r.top, w: r.width, h: r.height }, mainSeed, null);
   under = { seed: seedFor(to), path: to };
   // The very corner, a hair in so its fold never lands exactly on an edge.
   const G = [side === "left" ? 1 : r.width - 1, r.height - 1];
@@ -784,14 +848,6 @@ function pickUp(side) {
 function endFor(d) {
   const top = Math.min(flip.rect.y, 0) - 40 - flip.rect.y;
   return [d.G[0], 2 * top - d.G[1]];
-}
-
-// How far through the turn the sheet is, 0..1, judged on the part of it
-// that's on screen (a long sheet can't be pulled its whole length).
-function progress(d) {
-  const u = unit(sub(endFor(d), d.G));
-  const span = 2 * (d.G[1] - Math.max(0, -flip.rect.y)) + 80;
-  return clamp(dot(sub(d.P, d.G), u) / span, 0, 1);
 }
 
 // Held at the top edge, like a pad: the corner can't end up further from
@@ -830,6 +886,8 @@ function grab(side, e) {
   d.phase = "hold";
   d.from = local(e);
   d.base = d.P.slice();
+  d.pointerStart = [e.clientX, e.clientY];
+  d.startedAt = performance.now();
   document.body.classList.add("grabbing");
   play("lift", 0.22);
 }
@@ -840,15 +898,19 @@ function hold(e) {
   d.T = bind(d, [d.base[0] + m[0], d.base[1] + m[1]]);
 }
 
-function release() {
+function release(e) {
   const d = drag;
-  const toward = dot(d.V, unit(sub(endFor(d), d.P)));
-  const p = progress(d);
-  // Forgiving: a sheet pulled a hand's width toward the turn, or flicked
-  // onward at all, goes over; it only falls back if barely lifted or pushed
-  // back down. (Progress alone would ask for a long pull on a tall sheet.)
-  const pulled = dot(sub(d.P, d.G), unit(sub(endFor(d), d.G)));
-  letGo(toward > -500 && (pulled > 110 || p > 0.2 || (toward > 350 && p > 0.02)));
+  // Touch flicks can finish between animation frames, before the spring's P
+  // catches the finger. Judge the gesture from the pointer itself. Either
+  // lifting the corner or pulling it in toward the page turns the sheet.
+  const dx = e.clientX - d.pointerStart[0];
+  const dy = e.clientY - d.pointerStart[1];
+  const up = -dy;
+  const inward = d.side === "right" ? -dx : dx;
+  const speed = Math.hypot(dx, dy) / Math.max((performance.now() - d.startedAt) / 1000, 0.016);
+  const tap = Math.hypot(dx, dy) < 8;
+  letGo(tap || up > 56 || inward > 70 ||
+    (speed > 350 && (up > 24 || inward > 30)));
 }
 
 function letGo(commit) {
@@ -978,6 +1040,9 @@ function updateFlip(mainRect) {
 
 const mouse = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
 window.addEventListener("pointermove", (e) => {
+  // A finger moving during a scroll isn't a light source. Chasing it keeps
+  // repainting the whole shader long after the scrolling has stopped.
+  if (e.pointerType !== "mouse") return;
   mouse.tx = e.clientX / window.innerWidth;
   mouse.ty = e.clientY / window.innerHeight;
 });
@@ -986,13 +1051,18 @@ window.addEventListener("pointermove", (e) => {
 
 let dirty = true;
 let last = performance.now();
-let tick = 0;
 let time = 0;
+let lastAmbientDraw = 0;
+let wasFast = false;
+// The room light moves slowly. Keep turns, scrolling and pointer light at
+// display speed, but don't shade the entire viewport 20 times a second while
+// the reader is just looking at a page.
+const AMBIENT_FRAME_MS = 1000;
 
 function frame(now) {
-  const dt = Math.min((now - last) / 1000, 0.1);
+  const elapsed = (now - last) / 1000;
+  const dt = Math.min(elapsed, 0.1);
   last = now;
-  tick++;
 
   if (Math.abs(target - current) > 0.3) {
     current += (target - current) * (1 - Math.exp(-dt * 14));
@@ -1025,14 +1095,24 @@ function frame(now) {
     dirty = true;
   }
 
-  // The light drifts slowly; idle frames redraw at a third of the rate.
-  if (!reduced.matches) {
-    time += dt;
-    if (tick % 3 === 0) dirty = true;
+  // Native touch scrolling must shade a new viewport every frame. Render
+  // those moving frames at CSS-pixel density, then restore Retina detail
+  // once the page settles. The ink texture and canvas stay full resolution,
+  // so neither text layout nor Safari's compositor changes size mid-scroll.
+  const fast = coarsePhone.matches && (now - lastScrollAt < 180 || !!drag || !!anim);
+  if (wasFast && !fast) dirty = true;
+  wasFast = fast;
+
+  // The light drifts slowly; an idle redraw once a second is enough to keep
+  // the motion alive without running the full-screen shader continuously.
+  if (!reduced.matches && !coarsePhone.matches) {
+    time += elapsed;
+    if (now - lastAmbientDraw >= AMBIENT_FRAME_MS) dirty = true;
   }
 
   if (dirty && paper) {
     dirty = false;
+    lastAmbientDraw = now;
     const r = sheetRect();
     const { u, L, n0, mx } = geo;
     if (flip?.el) updateFlip(r);
@@ -1041,7 +1121,8 @@ function frame(now) {
     const underInk = under && ink ? ink.get(inkKey(under.path)) : null;
     const m = { x: r.left, y: r.top, w: r.width, h: under ? underInk?.h ?? r.height : r.height };
     paper.draw({
-      view: [root.clientWidth, window.innerHeight],
+      fast,
+      view: [viewWidth, viewHeight],
       main: [m.x + m.w / 2, m.y + m.h / 2, m.w / 2, m.h / 2],
       mainSeed: under ? under.seed : mainSeed,
       flip: f ? [f.x + f.w / 2, f.y + f.h / 2, f.w / 2, f.h / 2] : [0, 0, 1, 1],
@@ -1073,6 +1154,5 @@ function frame(now) {
 
 resize();
 window.addEventListener("resize", resize);
-darkMq.addEventListener("change", () => (dirty = true));
 new ResizeObserver(() => (dirty = true)).observe(sheet);
 requestAnimationFrame(frame);

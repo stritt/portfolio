@@ -736,7 +736,7 @@ export function startDraft({ sheet, untilt }) {
     trap.className = "draft-trap";
     form.append(trap);
     const row = el("div", "draft-row");
-    row.append(button("Cancel", hideTools), el("button", "draft-primary", "Post"));
+    row.append(button("Cancel", hideTools), el("button", "draft-primary", author ? "Post" : "Send for approval"));
     form.append(row);
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -749,13 +749,17 @@ export function startDraft({ sheet, untilt }) {
           website: trap.value,
           ...anchor,
         });
-        owners[res.annotation.id] = res.owner;
-        store.set("draftOwners", owners);
-        annotations.push(res.annotation);
         getSelection().removeAllRanges();
         hideTools();
-        render(true);
-        status();
+        if (res.pending) {
+          status("Comment sent. It'll appear once Brandon approves it.");
+        } else {
+          owners[res.annotation.id] = res.owner;
+          store.set("draftOwners", owners);
+          annotations.push(res.annotation);
+          render(true);
+          status();
+        }
       } catch (err) {
         flash(err.message);
       }

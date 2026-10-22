@@ -51,7 +51,10 @@ async function draw({ id, w, h, scale, words, marks = [], marker, images = [], s
   // A PNG to keep for next time, encoded after the ink has gone back so the
   // page isn't kept waiting (the blob is of the canvas as it is now).
   const blob = keep ? canvas.convertToBlob({ type: "image/png" }) : null;
-  const bitmap = canvas.transferToImageBitmap();
+  // WebGL ignores UNPACK_PREMULTIPLY_ALPHA_WEBGL for ImageBitmap. Safari's
+  // transferToImageBitmap() keeps straight RGB even where alpha is tiny,
+  // while the paper shader expects premultiplied RGB. Request it explicitly.
+  const bitmap = await createImageBitmap(canvas, { premultiplyAlpha: "premultiply" });
   self.postMessage({ id, bitmap, keeping: keep }, [bitmap]);
   blob?.then((b) => self.postMessage({ id, blob: b })).catch(() => self.postMessage({ id, blob: null }));
 }

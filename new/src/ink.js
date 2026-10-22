@@ -168,7 +168,7 @@ export function createInk(paper, metrics) {
     if (cache && url) {
       try {
         const hit = await cache.match(url);
-        if (hit) return await createImageBitmap(await hit.blob());
+        if (hit) return await createImageBitmap(await hit.blob(), { premultiplyAlpha: "premultiply" });
       } catch {}
     }
     const { runs, ...rest } = msg;

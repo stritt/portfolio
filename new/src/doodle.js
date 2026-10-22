@@ -29,18 +29,186 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   let mine = [];      // this visit's strokes: flat runs of x, y, pressure
   let guests = [];    // approved doodles for this page
   let page = location.pathname;
+  let canArrange = false;
+  let arranging = false;
+  const handles = new Map();
+
+  // The sheet's margin tools can be below the viewport (and are absent on
+  // small screens). Keep the action next to the drawing while it's in use.
+  const bar = document.createElement("div");
+  bar.className = "doodle-bar";
+  const start = document.createElement("button");
+  start.type = "button";
+  start.dataset.tool = "doodle";
+  start.textContent = "Doodle on this page";
+  const help = document.createElement("span");
+  help.className = "doodle-help";
+  help.textContent = "Draw anywhere on the page";
+  const save = document.createElement("button");
+  save.type = "button";
+  save.dataset.tool = "pin";
+  save.textContent = "Save doodle";
+  const done = document.createElement("button");
+  done.type = "button";
+  done.dataset.tool = "doodle";
+  done.textContent = "Done";
+  bar.append(start, help, save, done);
+  document.body.append(bar);
 
   let active = false;
+  const syncBar = () => {
+    bar.classList.toggle("active", active);
+    save.disabled = mine.length === 0;
+    help.textContent = mine.length ? "Ready to pin to the wall" : "Draw anywhere on the page";
+    document.documentElement.classList.toggle("has-doodle", mine.length > 0);
+  };
   const set = (v) => {
     active = v;
     stroke = null;
     document.documentElement.classList.toggle("doodling", v);
+    syncBar();
   };
   document.addEventListener("click", (e) => {
     const tool = e.target.closest?.("[data-tool]")?.dataset.tool;
     if (tool === "doodle") set(!active);
     if (tool === "pin") pin();
   });
+
+  const bounds = (g, dx = g.dx || 0, dy = g.dy || 0) => {
+    if (!g.rawBounds) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const s of g.strokes) {
+        for (let i = 0; i < s.length; i += 3) {
+          x0 = Math.min(x0, s[i]);
+          y0 = Math.min(y0, s[i + 1]);
+          x1 = Math.max(x1, s[i]);
+          y1 = Math.max(y1, s[i + 1]);
+        }
+      }
+      g.rawBounds = { x0, y0, x1, y1 };
+    }
+    const b = g.rawBounds;
+    return { x0: b.x0 + dx, y0: b.y0 + dy, x1: b.x1 + dx, y1: b.y1 + dy };
+  };
+
+  const canPlace = (g, dx, dy) => {
+    const b = bounds(g, dx, dy);
+    if (b.x0 < 4 || b.y0 < 4 || b.x1 > g.w - 4 || b.y1 > g.h - 4) return false;
+    return guests.every((other) => {
+      if (other.id === g.id || other.hidden) return true;
+      const otherBounds = bounds(other);
+      const k = g.w / other.w;
+      const o = { x0: otherBounds.x0 * k, y0: otherBounds.y0 * k, x1: otherBounds.x1 * k, y1: otherBounds.y1 * k };
+      return b.x0 >= o.x1 + 10 || b.x1 + 10 <= o.x0 || b.y0 >= o.y1 + 10 || b.y1 + 10 <= o.y0;
+    });
+  };
+
+  function syncHandles() {
+    if (!arranging || !canArrange) {
+      for (const handle of handles.values()) handle.remove();
+      handles.clear();
+      return;
+    }
+    const visible = guests.filter((g) => !g.hidden);
+    for (const g of visible) {
+      let handle = handles.get(g.id);
+      if (!handle) {
+        handle = document.createElement("button");
+        handle.type = "button";
+        handle.className = "doodle-handle";
+        handle.setAttribute("aria-label", `Move ${g.name ? `${g.name}'s` : "this"} doodle`);
+        handle.addEventListener("pointerdown", (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          handle.setPointerCapture(e.pointerId);
+          const start = local(e);
+          const original = [g.dx || 0, g.dy || 0];
+          const k = sheet.offsetWidth / g.w;
+          handle.onpointermove = (move) => {
+            if (move.pointerId !== e.pointerId) return;
+            const at = local(move);
+            const dx = Math.round((original[0] + (at[0] - start[0]) / k) * 2) / 2;
+            const dy = Math.round((original[1] + (at[1] - start[1]) / k) * 2) / 2;
+            if (!canPlace(g, dx, dy)) return;
+            g.dx = dx;
+            g.dy = dy;
+            paint();
+          };
+          const finish = async (save) => {
+            handle.onpointermove = handle.onpointerup = handle.onpointercancel = null;
+            if (!save) {
+              [g.dx, g.dy] = original;
+              paint();
+              return;
+            }
+            if ((g.dx || 0) === original[0] && (g.dy || 0) === original[1]) return;
+            try {
+              const moved = await wallApi("PATCH", {
+                sub: "/position",
+                query: `id=${encodeURIComponent(g.id)}&page=${encodeURIComponent(g.page)}`,
+                body: { dx: g.dx || 0, dy: g.dy || 0 },
+              });
+              g.dx = moved.dx;
+              g.dy = moved.dy;
+            } catch (error) {
+              [g.dx, g.dy] = original;
+              window.dispatchEvent(new CustomEvent("wall:arrange-error", { detail: { message: error.message } }));
+            }
+            paint();
+          };
+          handle.onpointerup = (up) => {
+            up.stopPropagation();
+            finish(true);
+          };
+          handle.onpointercancel = () => finish(false);
+        });
+        handles.set(g.id, handle);
+        sheet.append(handle);
+      }
+      const b = bounds(g);
+      const k = sheet.offsetWidth / g.w;
+      handle.style.left = `${b.x0 * k - 8}px`;
+      handle.style.top = `${b.y0 * k - 8}px`;
+      handle.style.width = `${(b.x1 - b.x0) * k + 16}px`;
+      handle.style.height = `${(b.y1 - b.y0) * k + 16}px`;
+    }
+    for (const [id, handle] of handles) {
+      if (visible.some((g) => g.id === id)) continue;
+      handle.remove();
+      handles.delete(id);
+    }
+  }
+
+  // Rebuild the canvas when an approved doodle moves, preserving any drawing
+  // the visitor has made on this sheet.
+  function paint() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width / scale, canvas.height / scale);
+    ctx.fillStyle = INK;
+    sheet.querySelectorAll(".guest-sig").forEach((s) => s.remove());
+    const w = sheet.offsetWidth;
+    for (const g of guests) {
+      if (g.hidden) continue;
+      const k = w / g.w;
+      ctx.save();
+      ctx.translate((g.dx || 0) * k, (g.dy || 0) * k);
+      drawStrokes(ctx, g.strokes, k, rng(parseInt(g.id.slice(-6), 36) || 1));
+      ctx.restore();
+      if (!g.name) continue;
+      const [x, y] = corner(g.strokes, k);
+      const sig = document.createElement("span");
+      sig.className = "guest guest-sig";
+      sig.textContent = `— ${g.name}`;
+      sig.style.left = `${Math.min(x + (g.dx || 0) * k, w - 12)}px`;
+      sig.style.top = `${y + (g.dy || 0) * k + 2}px`;
+      sheet.append(sig);
+    }
+    if (mine.length) drawStrokes(ctx, mine, 1, rng(11));
+    syncHandles();
+    if (guests.some((g) => !g.hidden) || mine.length) upload();
+    else { paper.doodle(null); redraw(); }
+  }
 
   // A clean sheet, with the approved doodles drawn back on.
   function fresh() {
@@ -53,38 +221,38 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     ctx.fillStyle = INK;
     mine = [];
     stroke = null;
-    sheet.querySelectorAll(".guest-sig").forEach((s) => s.remove());
-    const w = sheet.offsetWidth;
-    for (const g of guests) {
-      const k = w / g.w;
-      drawStrokes(ctx, g.strokes, k, rng(parseInt(g.id.slice(-6), 36) || 1));
-      if (!g.name) continue;
-      const [x, y] = corner(g.strokes, k);
-      const sig = document.createElement("span");
-      sig.className = "guest guest-sig";
-      sig.textContent = `— ${g.name}`;
-      sig.style.left = `${Math.min(x, w - 12)}px`;
-      sig.style.top = `${y + 2}px`;
-      sheet.append(sig);
-    }
-    if (guests.length) upload();
-    else paper.doodle(null);
-    redraw();
+    paint();
+    syncBar();
+  }
+
+  let loadVersion = 0;
+  async function refreshGuests(version = loadVersion) {
+    const target = page;
+    try {
+      const { items, author } = await wallApi("GET", { query: `page=${encodeURIComponent(target)}` });
+      if (version !== loadVersion || target !== location.pathname) return;
+      guests = items;
+      canArrange = !!author;
+      paint();
+    } catch {}
   }
 
   async function load() {
+    ++loadVersion;
     page = location.pathname;
     guests = [];
+    canArrange = false;
     fresh();
-    try {
-      const { items } = await wallApi("GET", { query: `page=${encodeURIComponent(page)}` });
-      if (page !== location.pathname) return;
-      guests = items;
-      if (guests.length) fresh();
-    } catch {}
+    refreshGuests();
   }
   load();
   set(on);
+  window.addEventListener("wall:refresh", () => refreshGuests());
+  window.addEventListener("wall:arrange", (e) => {
+    arranging = !!e.detail.active;
+    if (arranging) set(false);
+    syncHandles();
+  });
 
   function pin() {
     if (!mine.length) return;
@@ -92,8 +260,13 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     const w = sheet.offsetWidth;
     const h = sheet.offsetHeight;
     pinUp({
-      title: "Pin your doodle to the wall?",
+      title: "Save your doodle to the wall?",
       send: (name) => wallApi("POST", { body: { kind: "doodle", page, name, w, h, strokes } }),
+      onSuccess: () => {
+        mine = [];
+        paint();
+        set(false);
+      },
     });
   }
 
@@ -160,7 +333,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     if (!stroke || e.pointerId !== stroke.id) return;
     keep(stroke.last, stroke.press);
     stroke = null;
-    document.documentElement.classList.toggle("has-doodle", mine.length > 0);
+    syncBar();
   };
   sheet.addEventListener("pointerup", end);
   sheet.addEventListener("pointercancel", end);
@@ -168,7 +341,6 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   // A new page loads its own doodles; a sheet laid out at a new size is
   // drawn again.
   window.addEventListener("sheet:swap", () => {
-    document.documentElement.classList.remove("has-doodle");
     load();
   });
   let lastSize = `${sheet.offsetWidth}x${sheet.offsetHeight}`;
@@ -177,7 +349,6 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     if (size !== lastSize) {
       lastSize = size;
       fresh();
-      document.documentElement.classList.remove("has-doodle");
     }
   });
 
@@ -185,7 +356,6 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   window.addEventListener("keydown", (e) => {
     if (active && e.key === "c" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.target.closest?.("input, textarea, [contenteditable]")) {
       fresh();
-      document.documentElement.classList.remove("has-doodle");
     }
   });
 }

@@ -2,7 +2,7 @@
 // little past both ends, never quite level, heavier in the middle, and now
 // and then gone over again at the start. Each link gets its own line
 // (seeded by where it goes and what it says), drawn as an SVG under it so it
-// can be drawn in when the link is pointed at (see .sheet a in style.css).
+// stays visible under the link (see .sheet a in style.css).
 
 import { rng } from "./hand.js";
 
@@ -38,7 +38,7 @@ function line(w, color, rnd) {
 }
 
 export function underline(root) {
-  for (const a of root.querySelectorAll("a[href]:not(.tool)")) {
+  for (const a of root.querySelectorAll("a[href]:not(.tool):not(.turn)")) {
     const rect = a.getClientRects()[0];
     if (!rect) continue;
     let seed = 2166136261;

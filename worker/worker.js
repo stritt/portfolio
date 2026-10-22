@@ -10,7 +10,17 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // Limit public writes before they reach a Durable Object. Reads and the
+    // owner's authenticated editing session are unaffected.
+    if (url.pathname.startsWith("/api/") && ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
+        (!env.DRAFT_KEY || request.headers.get("x-draft-key") !== env.DRAFT_KEY)) {
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const { success } = await env.API_RATE_LIMITER.limit({ key: ip });
+      if (!success) return json({ error: "Too many submissions. Try again in a minute." }, 429);
+    }
+
     if (url.pathname === "/api/comments") {
+      if (request.method === "POST") return json({ error: "Leave comments on the article instead." }, 410);
       const id = env.COMMENTS.idFromName(POST_SLUG);
       return env.COMMENTS.get(id).fetch(request);
     }
@@ -335,12 +345,33 @@ const MAX_QUOTE = 600;
 const MAX_CONTEXT = 64;
 const MAX_NOTE = 1000;
 const MAX_ANNOTATIONS = 1000;
-const NOTE_COOLDOWN_MS = 3000;
+const MAX_PENDING_COMMENTS = 200;
+const MAX_PENDING_PER_IP = 3;
+const NOTE_COOLDOWN_MS = 30_000;
 const HIGHLIGHT_COOLDOWN_MS = 600;
+const REVIEW_ALERT_COOLDOWN_MS = 5 * 60_000;
 
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function notifyReview(state, env, what) {
+  if (!env.REVIEW_EMAIL) return;
+  const now = Date.now();
+  const last = await state.storage.get("review:last-alert");
+  if (last && now - last < REVIEW_ALERT_COOLDOWN_MS) return;
+  try {
+    await env.REVIEW_EMAIL.send({
+      from: "hello@burcs.dev",
+      to: "brandonstrittmatter@gmail.com",
+      subject: `New ${what} to review on burcs.dev`,
+      text: `Someone left a ${what} for your approval. Review it at https://burcs.dev/wall/.`,
+    });
+    await state.storage.put("review:last-alert", now);
+  } catch (error) {
+    console.error("Review email failed:", error);
+  }
 }
 
 export class Drafts {
@@ -367,7 +398,16 @@ export class Drafts {
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
 
+    if (url.pathname.endsWith("/annotations/approve")) {
+      if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+      if (!author) return json({ error: "Only Brandon can approve comments." }, 403);
+      return this.approveComment(url.searchParams.get("id"));
+    }
     if (url.pathname.endsWith("/annotations")) {
+      if (request.method === "GET" && url.searchParams.has("pending")) {
+        if (!author) return json({ error: "Only Brandon can review comments." }, 403);
+        return this.pendingComments();
+      }
       if (request.method === "POST") return this.annotate(request, author);
       if (request.method === "DELETE") return this.unannotate(url.searchParams.get("id"), request, author);
       return json({ error: "Method not allowed." }, 405);
@@ -383,8 +423,26 @@ export class Drafts {
       this.state.storage.get("html"),
       this.state.storage.list({ prefix: "a:", limit: MAX_ANNOTATIONS }),
     ]);
-    const annotations = [...entries.values()].map(({ ownerHash, ...a }) => a);
+    const annotations = [...entries.values()].map(({ ownerHash, ipHash, ...a }) => a);
     return json({ html: html ?? null, annotations, author });
+  }
+
+  async pendingComments() {
+    const entries = await this.state.storage.list({ prefix: "q:", limit: MAX_PENDING_COMMENTS });
+    return json({ items: [...entries.values()].map(({ ownerHash, ipHash, ...comment }) => comment) });
+  }
+
+  async approveComment(id) {
+    if (!id || !/^[a-z0-9-]{1,40}$/i.test(id)) return json({ error: "Bad comment." }, 400);
+    const comment = await this.state.storage.get("q:" + id);
+    if (!comment) return json({ error: "Comment not found." }, 404);
+    const count = (await this.state.storage.list({ prefix: "a:", limit: MAX_ANNOTATIONS })).size;
+    if (count >= MAX_ANNOTATIONS) return json({ error: "This post is full of comments." }, 409);
+    const { ipHash, ...approved } = comment;
+    await this.state.storage.put("a:" + id, approved);
+    await this.state.storage.delete("q:" + id);
+    this.broadcast();
+    return json({ ok: true });
   }
 
   async write(request, author) {
@@ -430,6 +488,9 @@ export class Drafts {
     if (text.length > MAX_NOTE) return json({ error: `Keep it under ${MAX_NOTE} characters.` }, 400);
     if (kind !== "highlight" && !name) return json({ error: "Add your name." }, 400);
     if (!author) {
+      if (/brandon|strittmatter|burcs/i.test(name.normalize("NFKC"))) {
+        return json({ error: "Only Brandon can sign with that name." }, 400);
+      }
       if (/https?:\/\/|www\./i.test(text + " " + name)) {
         return json({ error: "Links aren't allowed in comments." }, 400);
       }
@@ -445,30 +506,44 @@ export class Drafts {
       await this.state.storage.put(ipKey, now);
     }
 
-    const count = (await this.state.storage.list({ prefix: "a:", limit: MAX_ANNOTATIONS })).size;
-    if (count >= MAX_ANNOTATIONS) return json({ error: "This draft is full of notes." }, 409);
+    const prefixKey = !author && kind === "comment" ? "q:" : "a:";
+    const limit = prefixKey === "q:" ? MAX_PENDING_COMMENTS : MAX_ANNOTATIONS;
+    const entries = await this.state.storage.list({ prefix: prefixKey, limit });
+    if (entries.size >= limit) return json({ error: "This post is full of notes for now." }, 409);
+    const ipHash = prefixKey === "q:"
+      ? await sha256(request.headers.get("CF-Connecting-IP") || "unknown")
+      : null;
+    if (ipHash && [...entries.values()].filter((item) => item.ipHash === ipHash).length >= MAX_PENDING_PER_IP) {
+      return json({ error: "You have a few comments waiting for review already." }, 429);
+    }
 
     // The creator gets a token to delete it later; only its hash is kept.
     const owner = crypto.randomUUID();
     const at = Date.now();
     const id = `${at.toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
     const annotation = { id, kind, quote, prefix, suffix, text, name, at };
-    await this.state.storage.put("a:" + id, { ...annotation, ownerHash: await sha256(owner) });
+    await this.state.storage.put(prefixKey + id, { ...annotation, ownerHash: await sha256(owner), ...(ipHash ? { ipHash } : {}) });
+    if (prefixKey === "q:") {
+      await notifyReview(this.state, this.env, "comment");
+      return json({ ok: true, pending: true });
+    }
     this.broadcast();
     return json({ annotation, owner });
   }
 
   async unannotate(id, request, author) {
     if (!id || !/^[a-z0-9-]{1,40}$/i.test(id)) return json({ error: "Bad note." }, 400);
-    const key = "a:" + id;
-    const stored = await this.state.storage.get(key);
+    const approvedKey = "a:" + id;
+    const pendingKey = "q:" + id;
+    const stored = await this.state.storage.get(approvedKey) || await this.state.storage.get(pendingKey);
     if (!stored) return json({ ok: true });
     const owner = request.headers.get("x-owner") || "";
     if (!author && (!owner || (await sha256(owner)) !== stored.ownerHash)) {
       return json({ error: "That isn't yours to remove." }, 403);
     }
-    await this.state.storage.delete(key);
-    this.broadcast();
+    const approved = !!(await this.state.storage.get(approvedKey));
+    await this.state.storage.delete(approved ? approvedKey : pendingKey);
+    if (approved) this.broadcast();
     return json({ ok: true });
   }
 
@@ -526,6 +601,20 @@ export class Wall {
       if (!author) return json({ error: "Only Brandon can approve." }, 403);
       return this.approve(id);
     }
+    if (url.pathname.endsWith("/visibility") || url.pathname.endsWith("/position")) {
+      if (request.method !== "PATCH") return json({ error: "Method not allowed." }, 405);
+      if (!author) {
+        // A forwarded request body must be closed before returning from a
+        // Durable Object, including when the caller is refused.
+        await request.text().catch(() => {});
+        return json({ error: "Only Brandon can arrange the wall." }, 403);
+      }
+      const page = cleanPage(url.searchParams.get("page"));
+      if (!page || !id) return json({ error: "Which doodle?" }, 400);
+      return url.pathname.endsWith("/visibility")
+        ? this.visibility(page, id, request)
+        : this.position(page, id, request);
+    }
     if (request.method === "DELETE") {
       if (!author) return json({ error: "Only Brandon can remove things." }, 403);
       return this.remove(id);
@@ -537,12 +626,17 @@ export class Wall {
       if (!author) return json({ error: "Only Brandon can see what's waiting." }, 403);
       return json({ items: [...(await this.state.storage.list({ prefix: "p:" })).values()] });
     }
+    if (url.searchParams.has("approved")) {
+      if (!author) return json({ error: "Only Brandon can arrange the wall." }, 403);
+      return json({ items: [...(await this.state.storage.list({ prefix: "d:" })).values()] });
+    }
     if (url.searchParams.has("notes")) {
       return json({ items: [...(await this.state.storage.list({ prefix: "n:" })).values()], author });
     }
     const page = cleanPage(url.searchParams.get("page"));
     if (!page) return json({ error: "Which page?" }, 400);
-    return json({ items: [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()], author });
+    const items = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()];
+    return json({ items: author ? items : items.filter((item) => !item.hidden), author });
   }
 
   async submit(request, author) {
@@ -586,6 +680,7 @@ export class Wall {
 
     item.id = Date.now().toString(36) + crypto.randomUUID().slice(0, 6);
     await this.state.storage.put(`p:${item.id}`, item);
+    if (!author) await notifyReview(this.state, this.env, kind);
     return json({ ok: true, id: item.id });
   }
 
@@ -593,9 +688,53 @@ export class Wall {
     const item = await this.state.storage.get(`p:${id}`);
     if (!item) return json({ error: "Not found." }, 404);
     const key = item.kind === "note" ? `n:${id}` : `d:${item.page}|${id}`;
+    if (item.kind === "doodle") {
+      const others = [...(await this.state.storage.list({ prefix: `d:${item.page}|` })).values()]
+        .filter((other) => !other.hidden);
+      const spot = freeDoodleSpot(item, others);
+      if (!spot) return json({ error: "There isn't room for this doodle yet. Move another one first." }, 409);
+      Object.assign(item, spot);
+    }
     await this.state.storage.put(key, { ...item, approved: Date.now() });
     await this.state.storage.delete(`p:${id}`);
     return json({ ok: true });
+  }
+
+  async visibility(page, id, request) {
+    const key = `d:${page}|${id}`;
+    const item = await this.state.storage.get(key);
+    if (!item) return json({ error: "Not found." }, 404);
+    const body = await request.json().catch(() => null);
+    if (typeof body?.hidden !== "boolean") return json({ error: "Choose whether to show the doodle." }, 400);
+    if (!body.hidden) {
+      const others = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()]
+        .filter((other) => other.id !== id && !other.hidden);
+      if (others.some((other) => doodlesOverlap(item, other))) {
+        return json({ error: "Move another doodle before showing this one." }, 409);
+      }
+    }
+    await this.state.storage.put(key, { ...item, hidden: body.hidden });
+    return json({ ok: true });
+  }
+
+  async position(page, id, request) {
+    const key = `d:${page}|${id}`;
+    const item = await this.state.storage.get(key);
+    if (!item) return json({ error: "Not found." }, 404);
+    const body = await request.json().catch(() => null);
+    const dx = body?.dx, dy = body?.dy;
+    if (typeof dx !== "number" || typeof dy !== "number" || !Number.isFinite(dx) || !Number.isFinite(dy)) {
+      return json({ error: "Invalid position." }, 400);
+    }
+    const moved = { ...item, dx: Math.round(dx * 2) / 2, dy: Math.round(dy * 2) / 2 };
+    if (!doodleFits(moved)) return json({ error: "Keep the doodle on the page." }, 400);
+    const others = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()]
+      .filter((other) => other.id !== id && !other.hidden);
+    if (!item.hidden && others.some((other) => doodlesOverlap(moved, other))) {
+      return json({ error: "That would overlap another doodle." }, 409);
+    }
+    await this.state.storage.put(key, moved);
+    return json({ ok: true, dx: moved.dx, dy: moved.dy });
   }
 
   async remove(id) {
@@ -637,4 +776,62 @@ function cleanDoodle(p) {
     strokes.push(out);
   }
   return { page, w: Math.round(w), h: Math.round(h), strokes };
+}
+
+function doodleBounds(item, width = item.w) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const stroke of item.strokes) {
+    for (let i = 0; i < stroke.length; i += 3) {
+      x0 = Math.min(x0, stroke[i]);
+      y0 = Math.min(y0, stroke[i + 1]);
+      x1 = Math.max(x1, stroke[i]);
+      y1 = Math.max(y1, stroke[i + 1]);
+    }
+  }
+  const dx = item.dx || 0, dy = item.dy || 0;
+  const k = width / item.w;
+  return { x0: (x0 + dx) * k, y0: (y0 + dy) * k, x1: (x1 + dx) * k, y1: (y1 + dy) * k };
+}
+
+function doodleFits(item) {
+  const b = doodleBounds(item);
+  return b.x0 >= 4 && b.y0 >= 4 && b.x1 <= item.w - 4 && b.y1 <= item.h - 4;
+}
+
+function boxesOverlap(a, b) {
+  const gap = 10;
+  return a.x0 < b.x1 + gap && a.x1 + gap > b.x0 && a.y0 < b.y1 + gap && a.y1 + gap > b.y0;
+}
+
+function doodlesOverlap(a, b) {
+  return boxesOverlap(doodleBounds(a), doodleBounds(b, a.w));
+}
+
+// Keep newly approved drawings clear of the ones already on the sheet.
+function freeDoodleSpot(item, others) {
+  const box = doodleBounds(item);
+  const occupied = others.map((other) => doodleBounds(other, item.w));
+  const fits = (dx, dy) => {
+    const b = { x0: box.x0 + dx, y0: box.y0 + dy, x1: box.x1 + dx, y1: box.y1 + dy };
+    return b.x0 >= 4 && b.y0 >= 4 && b.x1 <= item.w - 4 && b.y1 <= item.h - 4 &&
+      occupied.every((other) => !boxesOverlap(b, other));
+  };
+  // A free rectangle can be slid against a page edge or another drawing.
+  // Try those positions instead of scanning every pixel of a long article.
+  const gap = 10;
+  const xs = new Set([0, 4 - box.x0, item.w - 4 - box.x1]);
+  const ys = new Set([0, 4 - box.y0, item.h - 4 - box.y1]);
+  for (const other of occupied) {
+    xs.add(other.x0 - gap - box.x1);
+    xs.add(other.x1 + gap - box.x0);
+    ys.add(other.y0 - gap - box.y1);
+    ys.add(other.y1 + gap - box.y0);
+  }
+  const spots = [];
+  for (const dx of xs) for (const dy of ys) spots.push({ dx, dy });
+  spots.sort((a, b) => a.dx ** 2 + a.dy ** 2 - b.dx ** 2 - b.dy ** 2);
+  for (const { dx, dy } of spots) {
+    if (fits(dx, dy)) return { dx, dy };
+  }
+  return null;
 }

@@ -128,6 +128,7 @@ uniform vec4 uHole;     // centre x, radius, spacing, enabled
 uniform float uInch;    // one inch at the sheet's scale, CSS px
 uniform vec2 uMouse;    // 0..1
 uniform float uTime;
+uniform float uFast;    // moving mobile frame: skip details too fine to see in motion
 uniform float uDark;
 uniform int uBg;        // what the sheet lies on (see desk())
 uniform int uLight;     // how the room is lit (see main())
@@ -406,14 +407,15 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
     float peaks = smoothstep(0.3, 0.68, s.r + (hash12(floor(sq * 2.0)) - 0.5) * 0.3);
     float a = min(1.0, k.a * 1.15) * mix(mix(0.7, 1.0, peaks), 1.0, smoothstep(0.4, 0.9, k.a));
     vec3 c = k.rgb / max(k.a, 1e-4);
-    // A hand resting on the page smears the odd line a little to the right.
-    float Lr = uRule.x;
-    float row = floor(qi.y / Lr);
-    float smearOn = step(0.72, hash12(vec2(row, seed + 2.7)));
-    vec2 tx = 1.0 / inkSize;
-    float smear = (texture(inkTex, uv - tx * vec2(5.0, -1.0)).a + texture(inkTex, uv - tx * vec2(12.0, -2.0)).a) * 0.5;
-    smear *= smearOn * smoothstep(0.2, 0.8, texture(uTex, vec2(q.x / 900.0, row * 0.071 + seed * 0.01)).b);
-    alb *= 1.0 - 0.07 * smear * inkAmt;
+    if (uFast < 0.5) {
+      // A hand resting on the page smears the odd line a little to the right.
+      float row = floor(qi.y / uRule.x);
+      float smearOn = step(0.72, hash12(vec2(row, seed + 2.7)));
+      vec2 tx = 1.0 / inkSize;
+      float smear = (texture(inkTex, uv - tx * vec2(5.0, -1.0)).a + texture(inkTex, uv - tx * vec2(12.0, -2.0)).a) * 0.5;
+      smear *= smearOn * smoothstep(0.2, 0.8, texture(uTex, vec2(q.x / 900.0, row * 0.071 + seed * 0.01)).b);
+      alb *= 1.0 - 0.07 * smear * inkAmt;
+    }
     alb *= mix(vec3(1.0), c, a * inkAmt);
     graphite = a * step(0.99, inkAmt);
   }
@@ -427,22 +429,25 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
   }
 
   // ---- paper relief ----
-  float h0 = relief(s);
-  float hx = relief(stock(sq + vec2(0.5, 0.0))) - h0;
-  float hy = relief(stock(sq + vec2(0.0, 0.5))) - h0;
-  vec3 n = normalize(vec3(-hx * 1.6, -hy * 1.6, 1.0));
+  vec3 n = vec3(0.0, 0.0, 1.0);
   vec3 Ll = L;
-  // How hard the light rakes across the tooth. A low sun would exaggerate
-  // it (relief shading grows with the light's slant), so it's held to what
-  // a midday light shows: the grain reads, but never as a texture overlay.
-  float slant = min(1.0, 1.25 * Ll.z / max(length(Ll.xy), 1e-3));
-  float rake = mix(0.08 + 0.3 * sun, 0.08 + 0.25 * lamp, uDark) * slant;
-  float shade = 1.0 + (dot(n, Ll) / Ll.z - 1.0) * rake;
+  float shade = 1.0;
+  if (uFast < 0.5) {
+    float h0 = relief(s);
+    float hx = relief(stock(sq + vec2(0.5, 0.0))) - h0;
+    float hy = relief(stock(sq + vec2(0.0, 0.5))) - h0;
+    n = normalize(vec3(-hx * 1.6, -hy * 1.6, 1.0));
+    // How hard the light rakes across the tooth. A low sun would exaggerate
+    // it, so the grain reads without looking like a texture overlay.
+    float slant = min(1.0, 1.25 * Ll.z / max(length(Ll.xy), 1e-3));
+    float rake = mix(0.08 + 0.3 * sun, 0.08 + 0.25 * lamp, uDark) * slant;
+    shade += (dot(n, Ll) / Ll.z - 1.0) * rake;
 
-  // Slow undulation: the sheet is never perfectly flat.
-  float ax = stock(sq + vec2(7.0, 0.0)).a - s.a;
-  float ay = stock(sq + vec2(0.0, 7.0)).a - s.a;
-  shade *= 1.0 + (-ax * Ll.x - ay * Ll.y) / Ll.z * 0.35 * slant;
+    // Slow undulation: the sheet is never perfectly flat.
+    float ax = stock(sq + vec2(7.0, 0.0)).a - s.a;
+    float ay = stock(sq + vec2(0.0, 7.0)).a - s.a;
+    shade *= 1.0 + (-ax * Ll.x - ay * Ll.y) / Ll.z * 0.35 * slant;
+  }
   // A slight bow across the width from sitting in a binder.
   shade *= 1.0 - 0.03 * (q.x / (hs.x * 2.0) - 0.5);
   // The lifted corner tilts toward or away from the light.
@@ -452,7 +457,7 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
 
   // The writing on the page above was pressed into this one: soft grooves,
   // lit on the side away from the light and shaded on the near side.
-  if (prevSize.x > 0.0) {
+  if (uFast < 0.5 && prevSize.x > 0.0) {
     // Wide taps: a groove under paper is soft, never a crisp copy.
     vec2 uv = qi / prevSize;
     vec2 e = 2.6 / prevSize;
@@ -473,7 +478,7 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
   // sits up beside the page where the pointer is, the eye above the middle
   // of the screen, so the glint slides over the writing as the pointer
   // moves, the way it does when a page is tilted under a lamp.
-  if (graphite > 0.0) {
+  if (uFast < 0.5 && graphite > 0.0) {
     vec3 lp = vec3(uMouse * uView, uView.y * 0.55);
     vec3 ep = vec3(uView * 0.5, uView.y * 1.6);
     vec3 H = normalize(normalize(lp - vec3(p, 0.0)) + normalize(ep - vec3(p, 0.0)));
@@ -700,11 +705,38 @@ export function createPaper(canvas) {
   let state;
   let doodleTex = null;
   let doodleSize = [0, 0];
+  let fastBuffer = null;
+
+  function ensureFastBuffer(w, h) {
+    if (fastBuffer?.w === w && fastBuffer?.h === h) return fastBuffer;
+    if (fastBuffer) {
+      gl.deleteFramebuffer(fastBuffer.fb);
+      gl.deleteTexture(fastBuffer.tex);
+    }
+    const tex = gl.createTexture();
+    // Unit 0 holds the baked paper stock used by the shader. Keep this
+    // render target off that unit so the fast pass never samples itself.
+    gl.activeTexture(gl.TEXTURE6);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0);
+    const fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    fastBuffer = { fb, tex, w, h };
+    return fastBuffer;
+  }
 
   function init() {
     // A restored context has lost every texture, doodles included.
     doodleTex = null;
     doodleSize = [0, 0];
+    fastBuffer = null;
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
 
@@ -734,7 +766,7 @@ export function createPaper(canvas) {
     const u = {};
     for (const name of [
       "uTex", "uRes", "uDpr", "uView", "uMain", "uMainSeed", "uTilt", "uFlip", "uFold", "uCurl", "uFlipInfo",
-      "uRule", "uHole", "uInch", "uMouse", "uTime", "uDark", "uBg", "uLight", "uDay", "uInkMain", "uInkFlip", "uInkSize", "uInkPrev", "uPrevSize", "uDoodle", "uDoodleSize", "uStack", "uStackF",
+      "uRule", "uHole", "uInch", "uMouse", "uTime", "uFast", "uDark", "uBg", "uLight", "uDay", "uInkMain", "uInkFlip", "uInkSize", "uInkPrev", "uPrevSize", "uDoodle", "uDoodleSize", "uStack", "uStackF",
     ]) {
       u[name] = gl.getUniformLocation(prog, name);
     }
@@ -770,9 +802,9 @@ export function createPaper(canvas) {
       const tex = gl.createTexture();
       gl.activeTexture(gl.TEXTURE3);
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      // ImageBitmap ignores this WebGL pixel-store flag; ink.js and the
+      // worker create premultiplied bitmaps before they reach this upload.
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -810,9 +842,13 @@ export function createPaper(canvas) {
     draw(f) {
       if (gl.isContextLost()) return;
       const { u } = state;
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.uniform2f(u.uRes, canvas.width, canvas.height);
-      gl.uniform1f(u.uDpr, canvas.width / f.view[0]);
+      const fast = f.fast && canvas.width > f.view[0];
+      const w = fast ? Math.round(f.view[0]) : canvas.width;
+      const h = fast ? Math.round(f.view[1]) : canvas.height;
+      if (fast) gl.bindFramebuffer(gl.FRAMEBUFFER, ensureFastBuffer(w, h).fb);
+      gl.viewport(0, 0, w, h);
+      gl.uniform2f(u.uRes, w, h);
+      gl.uniform1f(u.uDpr, w / f.view[0]);
       gl.uniform2f(u.uView, f.view[0], f.view[1]);
       gl.uniform4f(u.uMain, ...f.main);
       gl.uniform1f(u.uMainSeed, f.mainSeed);
@@ -826,6 +862,7 @@ export function createPaper(canvas) {
       gl.uniform1f(u.uInch, f.inch);
       gl.uniform2f(u.uMouse, ...f.mouse);
       gl.uniform1f(u.uTime, f.time);
+      gl.uniform1f(u.uFast, fast ? 1 : 0);
       gl.uniform1f(u.uDark, f.dark);
       gl.uniform1i(u.uBg, f.bg ?? 0);
       gl.uniform1i(u.uLight, f.light ?? 0);
@@ -850,6 +887,14 @@ export function createPaper(canvas) {
       gl.activeTexture(gl.TEXTURE0);
       gl.uniform2f(u.uDoodleSize, ...doodleSize);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (fast) {
+        // A single cheap upscale is less work than shading every Retina
+        // pixel during a scroll. The next quiet frame draws at full detail.
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fastBuffer.fb);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+        gl.blitFramebuffer(0, 0, w, h, 0, 0, canvas.width, canvas.height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+      }
     },
   };
 }

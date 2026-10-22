@@ -3,8 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Brandon — burcs.dev</title>
-    <meta name="description" content="Notes and writing by Brandon Strittmatter, Head of Design &amp; Experience at Cloudflare." />
+    <title>Brandon Strittmatter — Experience &amp; Design</title>
+    <meta name="description" content="Brandon Strittmatter is Head of Experience &amp; Design at Cloudflare and founder of Outerbase. Writing and tinkering at burcs.dev." />
+    <link rel="canonical" href="https://burcs.dev/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="burcs.dev" />
+    <meta property="og:title" content="Brandon Strittmatter — Experience &amp; Design" />
+    <meta property="og:description" content="Head of Experience &amp; Design at Cloudflare, founder of Outerbase, and occasional writer." />
+    <meta property="og:url" content="https://burcs.dev/" />
+    <meta property="og:image" content="https://burcs.dev/social/home-0cedd223.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Brandon's handwritten homepage on lined paper, lit by window blinds." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:creator" content="@burcs" />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"ProfilePage","@id":"https://burcs.dev/#profile","url":"https://burcs.dev/","name":"Brandon Strittmatter","mainEntity":{"@type":"Person","@id":"https://burcs.dev/#brandon","name":"Brandon Strittmatter","url":"https://burcs.dev/","jobTitle":"Head of Experience & Design","worksFor":{"@type":"Organization","name":"Cloudflare","url":"https://www.cloudflare.com/"},"email":"mailto:hello@burcs.dev","sameAs":["https://x.com/burcs"]}}
+    </script>
     <link rel="next" href="/projects/" vite-ignore />
     <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/src/style.css" />
@@ -17,30 +32,43 @@
     <main class="desk">
       <article class="sheet" id="sheet">
         <div class="head">
-          <span>Brandon</span>
-          <a href="https://x.com/burcs">@burcs</a>
+          <h1>Brandon</h1>
+          <div class="scene-controls" role="group" aria-label="Appearance">
+            <button type="button" class="scene-control" data-scene-control="light" aria-label="Change lighting" title="Change lighting">
+              <span class="icon icon-window" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="scene-control scene-theme" data-scene-control="theme" aria-label="Switch to dark background" title="Switch to dark background">
+              <span class="icon icon-moon" aria-hidden="true"></span>
+              <span class="icon icon-sun" aria-hidden="true"></span>
+            </button>
+          </div>
         </div>
 
         <p>
-          Currently Head of Design &amp; Experience at
-          <a href="https://www.cloudflare.com">Cloudflare</a>, where I spend most
-          of my time trying to make a huge, deeply technical platform feel
-          simple for the people building on it.
+          I’m currently Head of Experience &amp; Design at
+          <a href="https://www.cloudflare.com">Cloudflare</a>, working on making
+          their dashboard (and the rest of their frontend experiences) easy
+          to use for humans and agents.
         </p>
         <p>
-          Before that, I founded <a href="https://outerbase.com">Outerbase</a>,
-          an interface for databases that Cloudflare acquired in 2025.
+          Previously I founded <a href="https://outerbase.com">Outerbase</a>, an
+          ai-powered database platform.
+        </p>
+        <p>
+          Sometimes I write and give talks. If you’d like to chat, reach me
+          by <a href="mailto:hello@burcs.dev">email</a> or find me on
+          <a href="https://x.com/burcs">X</a>.
         </p>
 
         <h2>Writing</h2>
         <ul class="entries">
           <li>
             <a href="/notes/interfaces-are-cattle/">Interfaces are cattle, not pets…</a>
-            <span class="when">10.20.26</span>
+            <time class="when" datetime="2026-10-20">10.20.26</time>
           </li>
         </ul>
 
-        <span class="turn" aria-hidden="true">→</span>
+        <a class="turn" href="/projects/" aria-label="Things I'm tinkering with">→</a>
 
         <nav class="tools" aria-label="Write on this page">
           <a class="tool" href="/wall/?doodle" data-reload>doodle</a>

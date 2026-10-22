@@ -1,0 +1,8 @@
+Brandon Pencil and Brandon Pencil Graphite
+Copyright © 2026 Brandon Strittmatter. All rights reserved.
+
+These font files are provided solely to display pages on burcs.dev. A browser
+downloading them does not grant permission to reuse, modify, redistribute,
+or embed them on another website or in another product.
+
+For licensing, contact hello@burcs.dev.

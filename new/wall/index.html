@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>The wall — burcs.dev</title>
+    <title>The wall — Brandon Strittmatter</title>
     <meta name="description" content="Notes and doodles people have left on burcs.dev." />
+    <link rel="canonical" href="https://burcs.dev/wall/" />
     <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
@@ -14,9 +15,9 @@
     <!-- Notes visitors have pinned up and Brandon has approved, filled in by
          src/wall.js. -->
     <main class="desk">
-      <article class="sheet" id="sheet">
+      <article class="sheet wall-sheet" id="sheet">
         <div class="head">
-          <a href="/">← The wall</a>
+          <h1><a href="/"><span aria-hidden="true">← </span>The wall</a></h1>
         </div>
 
         <p>
@@ -24,11 +25,11 @@
           each one before it goes up.
         </p>
 
-        <div class="wall-notes"></div>
         <nav class="tools" aria-label="Write on this page">
           <button type="button" class="tool" data-tool="doodle">doodle</button>
-          <button type="button" class="tool" data-tool="pin">pin it up</button>
+          <button type="button" class="tool" data-tool="pin">Save doodle</button>
         </nav>
+        <div class="wall-notes"></div>
       </article>
     </main>
 

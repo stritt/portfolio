@@ -11,6 +11,19 @@
     // the trailing slash, so a bare /notes/slug redirects there.
     "html_handling": "auto-trailing-slash"
   },
+  "ratelimits": [
+    {
+      "name": "API_RATE_LIMITER",
+      "namespace_id": "20261022",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+  "send_email": [
+    {
+      "name": "REVIEW_EMAIL",
+      "destination_address": "brandonstrittmatter@gmail.com"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
