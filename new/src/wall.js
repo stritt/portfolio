@@ -7,6 +7,7 @@
 
 import { rng } from "./hand.js";
 import { INK, drawStrokes } from "./pencil.js";
+import { underline } from "./underline.js";
 
 const store = {
   get(k, d) {
@@ -137,8 +138,16 @@ function reviewUnavailable() {
   panel.append(el("h2", null, "Private review"), el("p", null, reviewError || "Open the private link from your review notification email to sign in."));
   document.body.append(panel);
 }
-export function showArticleReview() {
-  if (new URLSearchParams(location.search).has("review")) showQueue();
+export async function showArticleReview() {
+  const path = location.pathname;
+  const post = reviewPosts.find(({ slug }) => `/${slug}/` === path);
+  if (!post) return;
+  try {
+    await commentApi("GET", post.slug, { query: "pending" });
+    if (location.pathname === path) showQueue();
+  } catch {
+    if (location.pathname === path && new URLSearchParams(location.search).has("review")) reviewUnavailable();
+  }
 }
 
 export async function showWall(sheet) {
@@ -150,6 +159,17 @@ export async function showWall(sheet) {
     const { items } = data;
     author = data.author;
     list.replaceChildren(...items.map(noteEl));
+    const pageNav = sheet.querySelector(".wall-pages");
+    const page = Number(new URLSearchParams(location.search).get("sheet")) || 1;
+    pageNav?.replaceChildren(el("span", null, `Page ${page} of ${data.sheets}`));
+    for (const [label, number] of [["← Previous", page - 1], ["Next →", page + 1]]) {
+      if (number < 1 || number > data.sheets) continue;
+      const link = el("a", null, label);
+      link.href = `/wall/?sheet=${number}`;
+      link.setAttribute("data-reload", "");
+      pageNav?.append(link);
+    }
+    if (pageNav) underline(pageNav);
   } catch {
     list.replaceChildren(el("p", "wall-empty", "The wall couldn't be reached."));
   }
@@ -200,12 +220,14 @@ async function showQueue() {
   const panelAbort = queueAbort;
   document.querySelector(".wall-queue")?.remove();
   const panel = el("aside", "wall-queue");
+  panel.tabIndex = 0;
+  panel.setAttribute("aria-label", "Review submissions");
   document.body.append(panel);
   const path = location.pathname;
   const onWall = path === "/wall/";
   const posts = onWall ? reviewPosts : reviewPosts.filter(({ slug }) => `/${slug}/` === path);
   const focus = new URLSearchParams(location.search).get("review");
-  let pending, approved, comments;
+  let pending, approved, comments, sheets = 1;
   try {
     const results = await Promise.all([
       onWall ? wallApi("GET", { query: "pending" }) : Promise.resolve({ items: [] }),
@@ -214,6 +236,7 @@ async function showQueue() {
     ]);
     pending = results[0].items;
     approved = results[1].items;
+    sheets = results[1].sheets || 1;
     comments = results.slice(2).flatMap(({ items }, i) => items.map((item) => ({ ...item, ...posts[i] })));
   } catch (error) {
     panel.append(el("p", null, error.message));
@@ -224,6 +247,36 @@ async function showQueue() {
     return;
   }
   panel.classList.toggle("wall-queue-arranging", arranging);
+  const reviewNav = el("nav", "wall-queue-nav");
+  reviewNav.setAttribute("aria-label", "Private review navigation");
+  for (const post of reviewPosts) {
+    const link = el("a", null, `Review comments: ${post.title}`);
+    link.href = `/${post.slug}/?review`;
+    link.setAttribute("data-reload", "");
+    reviewNav.append(link);
+  }
+  panel.append(reviewNav);
+  if (onWall) {
+    const add = el("button", "wall-arrange", "Add a wall page");
+    add.onclick = async () => {
+      add.disabled = true;
+      try {
+        const data = await wallApi("POST", { sub: "/sheets" });
+        location.assign(`/wall/?sheet=${data.sheets}`);
+      } catch (error) { add.textContent = error.message; add.disabled = false; }
+    };
+    reviewNav.append(add);
+  }
+  const sheetPicker = (selected) => {
+    const select = el("select");
+    select.setAttribute("aria-label", "Wall page");
+    for (let n = 1; n <= sheets; n++) {
+      const option = el("option", null, `Page ${n}`);
+      option.value = n; option.selected = n === selected;
+      select.append(option);
+    }
+    return select;
+  };
   const act = (label, run) => {
     const b = el("button", null, label);
     b.onclick = async () => {
@@ -251,8 +304,10 @@ async function showQueue() {
     row.append(el("p", "wall-meta", `${item.kind === "note" ? "Note" : "Doodle for the wall"}${item.name ? ` · ${item.name}` : ""}`));
     row.append(item.kind === "note" ? el("p", "wall-text", item.text) : doodlePreview(item));
     const actions = el("div", "wall-actions");
+    const picker = sheetPicker(item.sheet || 1);
+    if (item.kind === "doodle") row.append(picker);
     actions.append(
-      act("Approve", () => wallApi("POST", { sub: "/approve", query: `id=${encodeURIComponent(item.id)}` })),
+      act("Approve", () => wallApi("POST", { sub: "/approve", query: `id=${encodeURIComponent(item.id)}&sheet=${picker.value}` })),
       act("Remove", () => wallApi("DELETE", { query: `id=${encodeURIComponent(item.id)}` })),
     );
     row.append(actions);
@@ -260,6 +315,7 @@ async function showQueue() {
   }
 
   panel.append(el("h2", null, `Comments waiting (${comments.length})`));
+  if (!comments.length) panel.append(el("p", "wall-meta", "No comments are waiting for approval. New comments will appear here with Approve and Remove buttons."));
   for (const item of comments) {
     const row = el("div", "wall-item");
     row.append(
@@ -277,7 +333,8 @@ async function showQueue() {
   }
 
   if (!onWall) return;
-  const current = approved.filter((item) => item.page === location.pathname && !item.hidden);
+  const wallPage = Number(new URLSearchParams(location.search).get("sheet")) || 1;
+  const current = approved.filter((item) => item.page === location.pathname && (item.sheet || 1) === wallPage && !item.hidden);
   const heading = el("div", "wall-queue-heading");
   heading.append(el("h2", null, `Approved doodles (${approved.length})`));
   if (current.length) {
@@ -305,7 +362,7 @@ async function showQueue() {
   window.addEventListener("wall:arrange-error", onArrangeError, { signal: panelAbort.signal });
   for (const item of approved) {
     const row = el("div", "wall-item");
-    row.append(el("p", "wall-meta", `${item.hidden ? "Hidden" : "Visible"} · ${item.page}${item.name ? ` · ${item.name}` : ""}`));
+    row.append(el("p", "wall-meta", `${item.hidden ? "Hidden" : "Visible"} · Page ${item.sheet || 1}${item.name ? ` · ${item.name}` : ""}`));
     row.append(doodlePreview(item));
     const actions = el("div", "wall-actions");
     actions.append(act(item.hidden ? "Show" : "Hide", () => wallApi("PATCH", {
@@ -314,6 +371,8 @@ async function showQueue() {
       body: { hidden: !item.hidden },
     })));
     row.append(actions);
+    const picker = sheetPicker(item.sheet || 1);
+    row.append(picker, act("Move to page", () => wallApi("PATCH", { sub: "/sheet", query: `id=${encodeURIComponent(item.id)}`, body: { sheet: Number(picker.value) } })));
     panel.append(row);
   }
 }

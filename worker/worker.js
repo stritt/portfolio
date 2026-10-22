@@ -12,7 +12,7 @@ export default {
 
     // A review session can moderate submissions, but cannot edit article drafts.
     const reviewRoute = (url.pathname.startsWith("/api/wall") &&
-      (request.method !== "POST" || url.pathname.endsWith("/approve"))) ||
+      (request.method !== "POST" || url.pathname.endsWith("/approve") || url.pathname.endsWith("/sheets"))) ||
       (url.pathname.startsWith("/api/draft/annotations") &&
         (request.method === "DELETE" || url.pathname.endsWith("/approve") ||
           (request.method === "GET" && url.searchParams.has("pending"))));
@@ -397,7 +397,9 @@ async function issueReviewToken(state) {
   return token;
 }
 async function newReviewLink(env, state, path = "/wall/", id = "") {
-  const destination = `https://burcs.dev${path}?review=${encodeURIComponent(id)}`;
+  const destinationUrl = new URL(path, "https://burcs.dev");
+  destinationUrl.searchParams.set("review", id);
+  const destination = destinationUrl.href;
   if (state) return `${destination}#review=${await issueReviewToken(state)}`;
   const response = await env.WALL.get(env.WALL.idFromName("wall")).fetch("https://internal/internal/review-token", {
     method: "POST", headers: { "x-draft-key": env.DRAFT_KEY },
@@ -678,6 +680,34 @@ export class Wall {
     const url = new URL(request.url);
     const author = this.isAuthor(request);
     const id = url.searchParams.get("id") || "";
+    const sheets = (await this.state.storage.get("wall:sheets")) || 1;
+    if (url.pathname.endsWith("/sheets")) {
+      if (request.method === "GET") return json({ sheets });
+      if (request.method !== "POST" || !author) return json({ error: "Only Brandon can add wall pages." }, 403);
+      if (sheets >= 100) return json({ error: "The wall has reached its page limit." }, 409);
+      const next = await this.state.storage.transaction(async (txn) => {
+        const count = (await txn.get("wall:sheets")) || 1;
+        if (count >= 100) return null;
+        await txn.put("wall:sheets", count + 1);
+        return count + 1;
+      });
+      return next ? json({ sheets: next }) : json({ error: "The wall is full." }, 409);
+    }
+    if (url.pathname.endsWith("/sheet")) {
+      if (request.method !== "PATCH" || !author) return json({ error: "Only Brandon can move doodles." }, 403);
+      const body = await request.json().catch(() => null);
+      if (!Number.isInteger(body?.sheet) || body.sheet < 1 || body.sheet > sheets) return json({ error: "Choose an existing wall page." }, 400);
+      const key = `d:/wall/|${id}`;
+      const item = await this.state.storage.get(key);
+      if (!item) return json({ error: "Doodle not found." }, 404);
+      const others = [...(await this.state.storage.list({ prefix: "d:/wall/|" })).values()]
+        .filter((other) => other.id !== id && !other.hidden && (other.sheet || 1) === body.sheet);
+      const moved = { ...item, sheet: body.sheet, dx: 0, dy: 0 };
+      const spot = freeDoodleSpot(moved, others);
+      if (!spot && !moved.hidden) return json({ error: "That page is full. Add another page first." }, 409);
+      await this.state.storage.put(key, { ...moved, ...(spot || {}) });
+      return json({ ok: true });
+    }
 
     if (url.pathname === "/internal/review-token") {
       if (!author || request.method !== "POST") return json({ error: "Not allowed." }, 403);
@@ -705,7 +735,9 @@ export class Wall {
     if (url.pathname.endsWith("/approve")) {
       if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
       if (!author) return json({ error: "Only Brandon can approve." }, 403);
-      return this.approve(id);
+      const targetSheet = url.searchParams.has("sheet") ? Number(url.searchParams.get("sheet")) : null;
+      if (targetSheet !== null && (!Number.isInteger(targetSheet) || targetSheet < 1 || targetSheet > sheets)) return json({ error: "Choose an existing wall page." }, 400);
+      return this.approve(id, targetSheet);
     }
     if (url.pathname.endsWith("/visibility") || url.pathname.endsWith("/position")) {
       if (request.method !== "PATCH") return json({ error: "Method not allowed." }, 405);
@@ -734,15 +766,16 @@ export class Wall {
     }
     if (url.searchParams.has("approved")) {
       if (!author) return json({ error: "Only Brandon can arrange the wall." }, 403);
-      return json({ items: [...(await this.state.storage.list({ prefix: "d:" })).values()] });
+      return json({ items: [...(await this.state.storage.list({ prefix: "d:" })).values()], sheets });
     }
     if (url.searchParams.has("notes")) {
-      return json({ items: [...(await this.state.storage.list({ prefix: "n:" })).values()], author });
+      return json({ items: [...(await this.state.storage.list({ prefix: "n:" })).values()], author, sheets });
     }
     const page = cleanPage(url.searchParams.get("page"));
     if (!page) return json({ error: "Which page?" }, 400);
     if (page !== "/wall/") return json({ items: [], author });
-    const items = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()];
+    const sheet = Number(url.searchParams.get("sheet")) || 1;
+    const items = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()].filter((item) => (item.sheet || 1) === sheet);
     return json({ items: author ? items : items.filter((item) => !item.hidden), author });
   }
 
@@ -770,6 +803,9 @@ export class Wall {
       const doodle = cleanDoodle(p);
       if (!doodle) return json({ error: "That doodle didn't come through." }, 400);
       Object.assign(item, doodle);
+      item.sheet = p.sheet ?? 1;
+      const sheets = (await this.state.storage.get("wall:sheets")) || 1;
+      if (!Number.isInteger(item.sheet) || item.sheet < 1 || item.sheet > sheets) return json({ error: "Choose an existing wall page." }, 400);
     }
     if (!author && hasProfanity(`${name}\n${item.text ?? ""}`)) {
       return json({ error: "Let's keep it friendly." }, 400);
@@ -788,20 +824,23 @@ export class Wall {
 
     item.id = Date.now().toString(36) + crypto.randomUUID().slice(0, 6);
     await this.state.storage.put(`p:${item.id}`, item);
-    if (!author) await notifyReview(this.state, this.env, kind, item.id);
+    if (!author) await notifyReview(this.state, this.env, kind, item.id, kind === "doodle" ? `/wall/?sheet=${item.sheet}` : "/wall/");
     return json({ ok: true, id: item.id });
   }
 
-  async approve(id) {
+  async approve(id, targetSheet = null) {
     const item = await this.state.storage.get(`p:${id}`);
     if (!item) return json({ error: "Not found." }, 404);
     // Earlier submissions may name the homepage or projects; approval now
     // puts those drawings on the wall too, without changing their strokes.
-    if (item.kind === "doodle") item.page = "/wall/";
+    if (item.kind === "doodle") {
+      item.page = "/wall/";
+      if (targetSheet !== null) item.sheet = targetSheet;
+    }
     const key = item.kind === "note" ? `n:${id}` : `d:${item.page}|${id}`;
     if (item.kind === "doodle") {
       const others = [...(await this.state.storage.list({ prefix: `d:${item.page}|` })).values()]
-        .filter((other) => !other.hidden);
+        .filter((other) => !other.hidden && (other.sheet || 1) === (item.sheet || 1));
       const spot = freeDoodleSpot(item, others);
       if (!spot) return json({ error: "There isn't room for this doodle yet. Move another one first." }, 409);
       Object.assign(item, spot);
@@ -819,7 +858,7 @@ export class Wall {
     if (typeof body?.hidden !== "boolean") return json({ error: "Choose whether to show the doodle." }, 400);
     if (!body.hidden) {
       const others = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()]
-        .filter((other) => other.id !== id && !other.hidden);
+        .filter((other) => other.id !== id && !other.hidden && (other.sheet || 1) === (item.sheet || 1));
       if (others.some((other) => doodlesOverlap(item, other))) {
         return json({ error: "Move another doodle before showing this one." }, 409);
       }
@@ -840,7 +879,7 @@ export class Wall {
     const moved = { ...item, dx: Math.round(dx * 2) / 2, dy: Math.round(dy * 2) / 2 };
     if (!doodleFits(moved)) return json({ error: "Keep the doodle on the page." }, 400);
     const others = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()]
-      .filter((other) => other.id !== id && !other.hidden);
+      .filter((other) => other.id !== id && !other.hidden && (other.sheet || 1) === (item.sheet || 1));
     if (!item.hidden && others.some((other) => doodlesOverlap(moved, other))) {
       return json({ error: "That would overlap another doodle." }, 409);
     }

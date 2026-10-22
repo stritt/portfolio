@@ -13,6 +13,7 @@ import { INK, layLine, drawStrokes, corner } from "./pencil.js";
 import { pinUp, wallApi } from "./wall.js";
 
 export const doodleParam = new URLSearchParams(location.search).has("doodle");
+const wallSheet = () => Number(new URLSearchParams(location.search).get("sheet")) || 1;
 
 // on: start with the pencil in hand. sheet: the resting sheet's element.
 // rect(): its untilted box on screen. tilt(): how far it's turned, in
@@ -231,7 +232,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     const target = page;
     if (target !== "/wall/") return;
     try {
-      const { items, author } = await wallApi("GET", { query: `page=${encodeURIComponent(target)}` });
+      const { items, author } = await wallApi("GET", { query: `page=${encodeURIComponent(target)}&sheet=${wallSheet()}` });
       if (version !== loadVersion || target !== location.pathname) return;
       guests = items;
       canArrange = !!author;
@@ -263,7 +264,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     const h = sheet.offsetHeight;
     pinUp({
       title: "Save your doodle to the wall?",
-      send: (name) => wallApi("POST", { body: { kind: "doodle", page, name, w, h, strokes } }),
+      send: (name) => wallApi("POST", { body: { kind: "doodle", page, sheet: wallSheet(), name, w, h, strokes } }),
       onSuccess: () => {
         mine = [];
         paint();

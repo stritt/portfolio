@@ -391,6 +391,7 @@ const maxScroll = () => root.scrollHeight - window.innerHeight;
 window.addEventListener(
   "wheel",
   (e) => {
+    if (e.target.closest?.(".wall-queue, .draft-note, .draft-tools")) return;
     if (e.ctrlKey || reduced.matches || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
     e.preventDefault();
     if (drag) return;   // the page is in hand
@@ -526,7 +527,7 @@ window.addEventListener("popstate", (e) => {
 // ← and → turn to the neighbouring sheets.
 window.addEventListener("keydown", (e) => {
   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-  if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+  if (e.target.closest?.("input, textarea, select, [contenteditable], .wall-queue")) return;
   const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
   const to = dir > 0 ? rel.next : dir < 0 ? rel.prev : null;
   if (!to || drag) return;
