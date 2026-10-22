@@ -63,6 +63,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     document.documentElement.classList.toggle("has-doodle", mine.length > 0);
   };
   const set = (v) => {
+    v = v && location.pathname === "/wall/";
     active = v;
     stroke = null;
     document.documentElement.classList.toggle("doodling", v);
@@ -228,6 +229,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   let loadVersion = 0;
   async function refreshGuests(version = loadVersion) {
     const target = page;
+    if (target !== "/wall/") return;
     try {
       const { items, author } = await wallApi("GET", { query: `page=${encodeURIComponent(target)}` });
       if (version !== loadVersion || target !== location.pathname) return;
@@ -255,7 +257,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   });
 
   function pin() {
-    if (!mine.length) return;
+    if (!mine.length || page !== "/wall/") return;
     const strokes = mine.map((s) => s.slice());
     const w = sheet.offsetWidth;
     const h = sheet.offsetHeight;

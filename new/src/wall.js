@@ -117,20 +117,33 @@ function noteEl(item) {
 
 // ---- /wall/ ----
 
+let reviewError = "";
+export async function prepareReview() {
+  const fragment = new URLSearchParams(location.hash.slice(1));
+  if (!fragment.has("review")) return;
+  const token = fragment.get("review");
+  const url = new URL(location.href);
+  if (!url.searchParams.has("review")) url.searchParams.set("review", "");
+  history.replaceState(history.state, "", url.pathname + url.search);
+  try {
+    const res = await fetch("/api/review-session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
+    const data = await res.json();
+    if (!res.ok) reviewError = data.error;
+  } catch { reviewError = "Couldn't sign in. Please reopen the link in your email."; }
+}
+function reviewUnavailable() {
+  document.querySelector(".wall-queue")?.remove();
+  const panel = el("aside", "wall-queue");
+  panel.append(el("h2", null, "Private review"), el("p", null, reviewError || "Open the private link from your review notification email to sign in."));
+  document.body.append(panel);
+}
+export function showArticleReview() {
+  if (new URLSearchParams(location.search).has("review")) showQueue();
+}
+
 export async function showWall(sheet) {
   const list = sheet.querySelector(".wall-notes");
   if (!list) return;
-  let reviewError = "";
-  const fragment = new URLSearchParams(location.hash.slice(1));
-  if (fragment.has("review")) {
-    const token = fragment.get("review");
-    history.replaceState(history.state, "", "/wall/?review");
-    try {
-      const res = await fetch("/api/review-session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
-      const data = await res.json();
-      if (!res.ok) reviewError = data.error;
-    } catch { reviewError = "Couldn't sign in. Please try again."; }
-  }
   let author = isAuthor();
   try {
     const data = await wallApi("GET", { query: "notes" });
@@ -141,28 +154,7 @@ export async function showWall(sheet) {
     list.replaceChildren(el("p", "wall-empty", "The wall couldn't be reached."));
   }
   if (author) showQueue();
-  else if (new URLSearchParams(location.search).has("review")) {
-    document.querySelector(".wall-queue")?.remove();
-    const panel = el("aside", "wall-queue");
-    panel.setAttribute("aria-label", "Owner sign in");
-    panel.append(el("h2", null, "Review submissions"), el("p", null, reviewError || "Brandon: sign in to see the doodles and comments waiting for approval."));
-    const button = el("button", "wall-arrange", "Email me a sign-in link");
-    const status = el("p", null, "");
-    status.setAttribute("role", "status");
-    button.onclick = async () => {
-      button.disabled = true;
-      try {
-        const res = await fetch("/api/review-link", { method: "POST" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        status.textContent = "Sent to your Gmail inbox. Open the private link on this device to review submissions.";
-      } catch (error) { status.textContent = error.message; button.disabled = false; }
-    };
-    const close = el("a", null, "Back to the wall");
-    close.href = "/wall/";
-    panel.append(button, status, close);
-    document.body.append(panel);
-  }
+  else if (new URLSearchParams(location.search).has("review")) reviewUnavailable();
 }
 
 let arranging = false;
@@ -209,21 +201,25 @@ async function showQueue() {
   document.querySelector(".wall-queue")?.remove();
   const panel = el("aside", "wall-queue");
   document.body.append(panel);
+  const path = location.pathname;
+  const onWall = path === "/wall/";
+  const posts = onWall ? reviewPosts : reviewPosts.filter(({ slug }) => `/${slug}/` === path);
+  const focus = new URLSearchParams(location.search).get("review");
   let pending, approved, comments;
   try {
     const results = await Promise.all([
-      wallApi("GET", { query: "pending" }),
-      wallApi("GET", { query: "approved" }),
-      ...reviewPosts.map(({ slug }) => commentApi("GET", slug, { query: "pending" })),
+      onWall ? wallApi("GET", { query: "pending" }) : Promise.resolve({ items: [] }),
+      onWall ? wallApi("GET", { query: "approved" }) : Promise.resolve({ items: [] }),
+      ...posts.map(({ slug }) => commentApi("GET", slug, { query: "pending" })),
     ]);
     pending = results[0].items;
     approved = results[1].items;
-    comments = results.slice(2).flatMap(({ items }, i) => items.map((item) => ({ ...item, ...reviewPosts[i] })));
+    comments = results.slice(2).flatMap(({ items }, i) => items.map((item) => ({ ...item, ...posts[i] })));
   } catch (error) {
     panel.append(el("p", null, error.message));
     return;
   }
-  if (location.pathname !== "/wall/" || !panel.isConnected) {
+  if (location.pathname !== path || !panel.isConnected) {
     panel.remove();
     return;
   }
@@ -235,7 +231,8 @@ async function showQueue() {
       try {
         await run();
         window.dispatchEvent(new Event("wall:refresh"));
-        showWall(document.querySelector("#sheet"));
+        if (onWall) showWall(document.querySelector("#sheet"));
+        else showQueue();
       } catch (error) {
         b.disabled = false;
         b.textContent = error.message;
@@ -244,10 +241,14 @@ async function showQueue() {
     return b;
   };
 
-  panel.append(el("h2", null, pending.length ? `Waiting (${pending.length})` : "Nothing waiting"));
+  if (focus) {
+    const first = (a, b) => Number(b.id === focus) - Number(a.id === focus);
+    pending.sort(first); approved.sort(first); comments.sort(first);
+  }
+  if (onWall) panel.append(el("h2", null, pending.length ? `Waiting (${pending.length})` : "Nothing waiting"));
   for (const item of pending) {
     const row = el("div", "wall-item");
-    row.append(el("p", "wall-meta", `${item.kind === "note" ? "Note" : `Doodle on ${item.page}`}${item.name ? ` · ${item.name}` : ""}`));
+    row.append(el("p", "wall-meta", `${item.kind === "note" ? "Note" : "Doodle for the wall"}${item.name ? ` · ${item.name}` : ""}`));
     row.append(item.kind === "note" ? el("p", "wall-text", item.text) : doodlePreview(item));
     const actions = el("div", "wall-actions");
     actions.append(
@@ -275,6 +276,7 @@ async function showQueue() {
     panel.append(row);
   }
 
+  if (!onWall) return;
   const current = approved.filter((item) => item.page === location.pathname && !item.hidden);
   const heading = el("div", "wall-queue-heading");
   heading.append(el("h2", null, `Approved doodles (${approved.length})`));

@@ -22,7 +22,8 @@ export default {
       request = new Request(request, { headers });
     }
 
-    if (url.pathname === "/api/review-link" || url.pathname === "/api/review-session") {
+    if (url.pathname === "/api/review-link") return json({ error: "Use the private link in your notification email." }, 404);
+    if (url.pathname === "/api/review-session") {
       if (request.headers.get("origin") !== url.origin) return json({ error: "Not allowed." }, 403);
       const { success } = await env.API_RATE_LIMITER.limit({ key: request.headers.get("CF-Connecting-IP") || "unknown" });
       if (!success) return json({ error: "Try again in a minute." }, 429);
@@ -395,14 +396,15 @@ async function issueReviewToken(state) {
   await state.storage.put(`login:${await sha256(token)}`, Date.now() + 86400_000);
   return token;
 }
-async function newReviewLink(env, state) {
-  if (state) return `https://burcs.dev/wall/#review=${await issueReviewToken(state)}`;
+async function newReviewLink(env, state, path = "/wall/", id = "") {
+  const destination = `https://burcs.dev${path}?review=${encodeURIComponent(id)}`;
+  if (state) return `${destination}#review=${await issueReviewToken(state)}`;
   const response = await env.WALL.get(env.WALL.idFromName("wall")).fetch("https://internal/internal/review-token", {
     method: "POST", headers: { "x-draft-key": env.DRAFT_KEY },
   });
   if (!response.ok) throw new Error("Could not create review link");
   const { token } = await response.json();
-  return `https://burcs.dev/wall/#review=${token}`;
+  return `${destination}#review=${token}`;
 }
 
 async function sha256(text) {
@@ -410,13 +412,13 @@ async function sha256(text) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function notifyReview(state, env, what) {
+async function notifyReview(state, env, what, id, path = "/wall/") {
   if (!env.REVIEW_EMAIL) return;
   const now = Date.now();
   const last = await state.storage.get("review:last-alert");
   if (last && now - last < REVIEW_ALERT_COOLDOWN_MS) return;
   try {
-    const link = await newReviewLink(env, what === "comment" ? null : state);
+    const link = await newReviewLink(env, what === "comment" ? null : state, path, id);
     await env.REVIEW_EMAIL.send({
       from: "hello@burcs.dev",
       to: "brandonstrittmatter@gmail.com",
@@ -579,7 +581,7 @@ export class Drafts {
     const annotation = { id, kind, quote, prefix, suffix, text, name, at };
     await this.state.storage.put(prefixKey + id, { ...annotation, ownerHash: await sha256(owner), ...(ipHash ? { ipHash } : {}) });
     if (prefixKey === "q:") {
-      await notifyReview(this.state, this.env, "comment");
+      await notifyReview(this.state, this.env, "comment", id, `/${new URL(request.url).searchParams.get("slug").split(":")[0]}/`);
       return json({ ok: true, pending: true });
     }
     this.broadcast();
@@ -646,7 +648,33 @@ export class Wall {
     return !!key && request.headers.get("x-draft-key") === key;
   }
 
+  async migrateDoodles() {
+    await this.state.storage.transaction(async (txn) => {
+      if (await txn.get("wall-only:v1")) return;
+      const approved = await txn.list({ prefix: "d:" });
+      const onWall = [...approved.values()].filter((item) => item.page === "/wall/" && !item.hidden);
+      for (const [key, item] of approved) {
+        if (item.page === "/wall/") continue;
+        const moved = { ...item, page: "/wall/", h: Math.round(item.w * 11 / 8.5), dx: 0, dy: 0 };
+        const spot = freeDoodleSpot(moved, onWall);
+        if (spot) Object.assign(moved, spot);
+        else moved.hidden = true;
+        await txn.put(`d:/wall/|${item.id}`, moved);
+        await txn.delete(key);
+        if (!moved.hidden) onWall.push(moved);
+      }
+      const pending = await txn.list({ prefix: "p:" });
+      for (const [key, item] of pending) {
+        if (item.kind === "doodle" && item.page !== "/wall/") {
+          await txn.put(key, { ...item, page: "/wall/", h: Math.round(item.w * 11 / 8.5) });
+        }
+      }
+      await txn.put("wall-only:v1", true);
+    });
+  }
+
   async fetch(request) {
+    await this.migrateDoodles();
     const url = new URL(request.url);
     const author = this.isAuthor(request);
     const id = url.searchParams.get("id") || "";
@@ -655,20 +683,6 @@ export class Wall {
       if (!author || request.method !== "POST") return json({ error: "Not allowed." }, 403);
       const token = await issueReviewToken(this.state);
       return json({ token });
-    }
-    if (url.pathname === "/api/review-link") {
-      if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
-      const last = await this.state.storage.get("login:last-email");
-      if (last && Date.now() - last < 60_000) return json({ error: "A link was just sent. Check your inbox, or try again in a minute." }, 429);
-      await this.state.storage.put("login:last-email", Date.now());
-      try {
-        const link = await newReviewLink(this.env, this.state);
-        await this.env.REVIEW_EMAIL.send({ from: "hello@burcs.dev", to: "brandonstrittmatter@gmail.com",
-          subject: "Your burcs.dev review link", text: `Sign in to review doodles and comments: ${link}\n\nThis private link works once and expires in 24 hours. If you did not request it, you can ignore this email.` });
-        return json({ ok: true });
-      } catch {
-        return json({ error: "Couldn't send the link. Please try again shortly." }, 503);
-      }
     }
     if (url.pathname === "/api/review-session") {
       if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -727,6 +741,7 @@ export class Wall {
     }
     const page = cleanPage(url.searchParams.get("page"));
     if (!page) return json({ error: "Which page?" }, 400);
+    if (page !== "/wall/") return json({ items: [], author });
     const items = [...(await this.state.storage.list({ prefix: `d:${page}|` })).values()];
     return json({ items: author ? items : items.filter((item) => !item.hidden), author });
   }
@@ -751,6 +766,7 @@ export class Wall {
       if (text.length > MAX_WALL_TEXT) return json({ error: "That's a bit long for the wall." }, 413);
       item.text = text;
     } else {
+      if (p.page !== "/wall/") return json({ error: "Doodles belong on the wall. Draw at burcs.dev/wall/." }, 400);
       const doodle = cleanDoodle(p);
       if (!doodle) return json({ error: "That doodle didn't come through." }, 400);
       Object.assign(item, doodle);
@@ -772,13 +788,16 @@ export class Wall {
 
     item.id = Date.now().toString(36) + crypto.randomUUID().slice(0, 6);
     await this.state.storage.put(`p:${item.id}`, item);
-    if (!author) await notifyReview(this.state, this.env, kind);
+    if (!author) await notifyReview(this.state, this.env, kind, item.id);
     return json({ ok: true, id: item.id });
   }
 
   async approve(id) {
     const item = await this.state.storage.get(`p:${id}`);
     if (!item) return json({ error: "Not found." }, 404);
+    // Earlier submissions may name the homepage or projects; approval now
+    // puts those drawings on the wall too, without changing their strokes.
+    if (item.kind === "doodle") item.page = "/wall/";
     const key = item.kind === "note" ? `n:${id}` : `d:${item.page}|${id}`;
     if (item.kind === "doodle") {
       const others = [...(await this.state.storage.list({ prefix: `d:${item.page}|` })).values()]

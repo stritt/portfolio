@@ -2,7 +2,7 @@ import { createPaper } from "./paper.js";
 import { createInk } from "./ink.js";
 import { draftParam, startDraft } from "./draft.js";
 import { doodleParam, startDoodle } from "./doodle.js";
-import { showWall } from "./wall.js";
+import { showWall, prepareReview, showArticleReview } from "./wall.js";
 import { underline } from "./underline.js";
 
 const root = document.documentElement;
@@ -21,6 +21,7 @@ const plainOnly = new URLSearchParams(location.search).has("plain");
 // stays in the plain cut and the sheets aren't picked up.
 // Only posts have drafts.
 const drafting = draftParam !== null && location.pathname.startsWith("/notes/");
+if (doodleParam && location.pathname !== "/wall/") location.replace("/wall/?doodle");
 let leaveDraft = null;
 function clearModes() {
   const url = new URL(location.href);
@@ -225,7 +226,8 @@ async function measureFont() {
 
 layout();
 const idle = window.requestIdleCallback ?? ((cb) => setTimeout(cb, 200));
-measureFont().then(() => {
+measureFont().then(async () => {
+  await prepareReview();
   underline(sheet);
   root.classList.add("ready");
   wallPage();
@@ -601,6 +603,7 @@ function swap(page, path) {
 
 // The wall's notes are filled in after the sheet is laid out.
 const wallPage = () => {
+  if (shownPath.startsWith("/notes/")) showArticleReview();
   if (shownPath !== "/wall/") return;
   showWall(sheet).then(() => window.dispatchEvent(new Event("sheet:changed")));
 };
