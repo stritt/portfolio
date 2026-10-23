@@ -38,6 +38,75 @@ export function drawStrokes(ctx, strokes, k, rnd) {
   }
 }
 
+// Finished pencil settles into the paper rather than looking like a thin
+// pen. Bake its broken coverage and faint dust edge once, in a tight crop;
+// moving it or repainting the sheet can then reuse the same small bitmap.
+const graphiteCache = new WeakMap();
+let tooth = null;
+function pencilTooth() {
+  if (tooth) return tooth;
+  tooth = document.createElement("canvas");
+  tooth.width = tooth.height = 128;
+  const c = tooth.getContext("2d");
+  const image = c.createImageData(128, 128);
+  let seed = 74183;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let i = 0; i < image.data.length; i += 4) {
+    const density = random();
+    image.data[i + 3] = density < 0.14 ? 0 : density < 0.31 ? 60 : 155 + random() * 100;
+  }
+  c.putImageData(image, 0, 0);
+  return tooth;
+}
+
+export function drawGraphiteStrokes(ctx, strokes, k, rnd) {
+  if (!strokes.length) return;
+  const transform = ctx.getTransform();
+  const resolution = Math.min(2, Math.max(1, Math.hypot(transform.a, transform.b)));
+  const key = `${k}@${resolution}`;
+  let sizes = graphiteCache.get(strokes);
+  if (!sizes) graphiteCache.set(strokes, sizes = new Map());
+  let stamp = sizes.get(key);
+  if (!stamp) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const s of strokes) for (let i = 0; i < s.length; i += 3) {
+      x0 = Math.min(x0, s[i] * k); y0 = Math.min(y0, s[i + 1] * k);
+      x1 = Math.max(x1, s[i] * k); y1 = Math.max(y1, s[i + 1] * k);
+    }
+    if (!Number.isFinite(x0)) return;
+    const x = Math.floor(x0) - 4, y = Math.floor(y0) - 4;
+    const w = Math.ceil(x1 - x + 4), h = Math.ceil(y1 - y + 4);
+    const raw = document.createElement("canvas");
+    raw.width = Math.ceil(w * resolution); raw.height = Math.ceil(h * resolution);
+    const c = raw.getContext("2d");
+    c.setTransform(resolution, 0, 0, resolution, -x * resolution, -y * resolution);
+    c.fillStyle = INK;
+    drawStrokes(c, strokes, k, rnd);
+    const finished = document.createElement("canvas");
+    finished.width = raw.width; finished.height = raw.height;
+    const f = finished.getContext("2d");
+    // A trace of loose graphite softens the silhouette without a blur pass.
+    f.globalAlpha = 0.07;
+    f.drawImage(raw, -0.6 * resolution, 0.2 * resolution);
+    f.drawImage(raw, 0.6 * resolution, -0.2 * resolution);
+    c.resetTransform();
+    c.globalCompositeOperation = "destination-in";
+    c.fillStyle = c.createPattern(pencilTooth(), "repeat");
+    c.fillRect(0, 0, raw.width, raw.height);
+    f.globalAlpha = 0.88;
+    f.drawImage(raw, 0, 0);
+    stamp = { canvas: finished, x, y, w, h };
+    // Retain the current preview and page sizes, without accumulating crops
+    // indefinitely when a phone is rotated or a window is resized.
+    if (sizes.size >= 2) sizes.clear();
+    sizes.set(key, stamp);
+  }
+  ctx.drawImage(stamp.canvas, stamp.x, stamp.y, stamp.w, stamp.h);
+}
+
 // Where a doodle sits, for its signature: the bottom-right of its strokes.
 export function corner(strokes, k) {
   let x = -Infinity;

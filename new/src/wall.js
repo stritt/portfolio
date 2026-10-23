@@ -6,7 +6,7 @@
 // /wall/ he also sees what's waiting, with Approve and Remove.
 
 import { rng } from "./hand.js";
-import { INK, drawStrokes } from "./pencil.js";
+import { INK, drawGraphiteStrokes } from "./pencil.js";
 import { underline } from "./underline.js";
 
 const store = {
@@ -209,7 +209,7 @@ function doodlePreview(item) {
   ctx.scale(2, 2);
   ctx.translate((w - (x1 - x0) * k) / 2 - x0 * k, pad * k - y0 * k);
   ctx.fillStyle = INK;
-  drawStrokes(ctx, item.strokes, k, rng(7));
+  drawGraphiteStrokes(ctx, item.strokes, k, rng(7));
   return c;
 }
 

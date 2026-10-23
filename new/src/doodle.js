@@ -9,7 +9,7 @@
 // drawn on their page for everyone, each signed by whoever drew it.
 
 import { rng } from "./hand.js";
-import { INK, layLine, drawStrokes, corner } from "./pencil.js";
+import { INK, layLine, drawStrokes, drawGraphiteStrokes, corner } from "./pencil.js";
 import { pinUp, wallApi } from "./wall.js";
 
 export const doodleParam = new URLSearchParams(location.search).has("doodle");
@@ -195,7 +195,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
       const k = w / g.w;
       ctx.save();
       ctx.translate((g.dx || 0) * k, (g.dy || 0) * k);
-      drawStrokes(ctx, g.strokes, k, rng(parseInt(g.id.slice(-6), 36) || 1));
+      drawGraphiteStrokes(ctx, g.strokes, k, rng(parseInt(g.id.slice(-6), 36) || 1));
       ctx.restore();
       if (!g.name) continue;
       const [x, y] = corner(g.strokes, k);
