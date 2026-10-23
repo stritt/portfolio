@@ -62,6 +62,49 @@ function pencilTooth() {
   return tooth;
 }
 
+function graphiteFinish(raw, resolution) {
+  const finished = document.createElement("canvas");
+  finished.width = raw.width; finished.height = raw.height;
+  const f = finished.getContext("2d");
+  f.globalAlpha = 0.07;
+  f.drawImage(raw, -0.6 * resolution, 0.2 * resolution);
+  f.drawImage(raw, 0.6 * resolution, -0.2 * resolution);
+  const c = raw.getContext("2d");
+  c.resetTransform();
+  c.globalCompositeOperation = "destination-in";
+  c.fillStyle = c.createPattern(pencilTooth(), "repeat");
+  c.fillRect(0, 0, raw.width, raw.height);
+  f.globalAlpha = 0.88;
+  f.drawImage(raw, 0, 0);
+  return finished;
+}
+
+const signatureCache = new Map();
+export function drawGraphiteSignature(ctx, text, font, fs, x, y, width) {
+  const transform = ctx.getTransform();
+  const resolution = Math.min(2, Math.max(1, Math.hypot(transform.a, transform.b)));
+  const key = `${text}|${font}|${resolution}|${width}`;
+  let stamp = signatureCache.get(key);
+  if (!stamp) {
+    const w = Math.ceil(width + 8), h = Math.ceil(fs * 1.7 + 8);
+    const raw = document.createElement("canvas");
+    raw.width = Math.ceil(w * resolution); raw.height = Math.ceil(h * resolution);
+    const c = raw.getContext("2d");
+    c.scale(resolution, resolution);
+    c.font = font;
+    c.fillStyle = INK;
+    const metrics = c.measureText(text);
+    const asc = metrics.fontBoundingBoxAscent ?? fs * 0.9;
+    const desc = metrics.fontBoundingBoxDescent ?? fs * 0.25;
+    // Match the baseline in the original one-em DOM line box.
+    c.fillText(text, 4, 4 + fs / 2 + (asc - desc) / 2);
+    stamp = { canvas: graphiteFinish(raw, resolution), w, h };
+    if (signatureCache.size >= 64) signatureCache.clear();
+    signatureCache.set(key, stamp);
+  }
+  ctx.drawImage(stamp.canvas, x - 4, y - 4, stamp.w, stamp.h);
+}
+
 export function drawGraphiteStrokes(ctx, strokes, k, rnd) {
   if (!strokes.length) return;
   const transform = ctx.getTransform();
@@ -85,20 +128,7 @@ export function drawGraphiteStrokes(ctx, strokes, k, rnd) {
     c.setTransform(resolution, 0, 0, resolution, -x * resolution, -y * resolution);
     c.fillStyle = INK;
     drawStrokes(c, strokes, k, rnd);
-    const finished = document.createElement("canvas");
-    finished.width = raw.width; finished.height = raw.height;
-    const f = finished.getContext("2d");
-    // A trace of loose graphite softens the silhouette without a blur pass.
-    f.globalAlpha = 0.07;
-    f.drawImage(raw, -0.6 * resolution, 0.2 * resolution);
-    f.drawImage(raw, 0.6 * resolution, -0.2 * resolution);
-    c.resetTransform();
-    c.globalCompositeOperation = "destination-in";
-    c.fillStyle = c.createPattern(pencilTooth(), "repeat");
-    c.fillRect(0, 0, raw.width, raw.height);
-    f.globalAlpha = 0.88;
-    f.drawImage(raw, 0, 0);
-    stamp = { canvas: finished, x, y, w, h };
+    stamp = { canvas: graphiteFinish(raw, resolution), x, y, w, h };
     // Retain the current preview and page sizes, without accumulating crops
     // indefinitely when a phone is rotated or a window is resized.
     if (sizes.size >= 2) sizes.clear();

@@ -633,6 +633,11 @@ body:has(.pin-note) .doodle-bar { display: none; }
   transform: translateX(-100%);
   pointer-events: none;
 }
+.sheet .graphite-sig {
+  /* Keep the name readable to assistive technology; its visible graphite
+     is baked into the same paper texture as the drawing. */
+  -webkit-text-fill-color: transparent;
+}
 
 .pin-note {
   position: fixed;

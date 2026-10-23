@@ -9,7 +9,7 @@
 // drawn on their page for everyone, each signed by whoever drew it.
 
 import { rng } from "./hand.js";
-import { INK, layLine, drawStrokes, drawGraphiteStrokes, corner } from "./pencil.js";
+import { INK, layLine, drawStrokes, drawGraphiteStrokes, drawGraphiteSignature, corner } from "./pencil.js";
 import { pinUp, wallApi } from "./wall.js";
 
 export const doodleParam = new URLSearchParams(location.search).has("doodle");
@@ -200,11 +200,15 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
       if (!g.name) continue;
       const [x, y] = corner(g.strokes, k);
       const sig = document.createElement("span");
-      sig.className = "guest guest-sig";
+      sig.className = "guest guest-sig graphite-sig";
       sig.textContent = `— ${g.name}`;
       sig.style.left = `${Math.min(x + (g.dx || 0) * k, w - 12)}px`;
       sig.style.top = `${y + (g.dy || 0) * k + 2}px`;
       sheet.append(sig);
+      const css = getComputedStyle(sig);
+      const fs = parseFloat(css.fontSize);
+      drawGraphiteSignature(ctx, sig.textContent, `${fs}px ${css.fontFamily}`, fs,
+        parseFloat(sig.style.left) - sig.offsetWidth, parseFloat(sig.style.top), sig.offsetWidth);
     }
     if (mine.length) drawStrokes(ctx, mine, 1, rng(11));
     syncHandles();
