@@ -4,6 +4,7 @@ import { draftParam, startDraft } from "./draft.js";
 import { doodleParam, startDoodle } from "./doodle.js";
 import { showWall, prepareReview, showArticleReview } from "./wall.js";
 import { underline } from "./underline.js";
+import { startFigures } from "./figure.js";
 
 const root = document.documentElement;
 const sheet = document.getElementById("sheet");
@@ -255,6 +256,7 @@ measureFont().then(async () => {
       redraw: () => (dirty = true),
     });
   }
+  startFigures({ paper, sheet, redraw: () => (dirty = true) });
   // Graphite (~3x the plain cut) never blocks first paint: the page shows in
   // the plain cut and its ink is swapped in once drawn (see ink.js).
   const later = () =>
@@ -1185,6 +1187,8 @@ function frame(now) {
       // is being turned up, that's the one in hand; otherwise the previous.
       inkPrev: under ? mainInk : rel.prev && ink ? ink.get(inkKey(rel.prev)) : null,
       inkFlip: flip?.ink ?? null,
+      // A post's figures stay on it, not on the page beneath it.
+      figures: !under,
     });
   }
 

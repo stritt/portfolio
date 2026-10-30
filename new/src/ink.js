@@ -28,8 +28,9 @@ function measure(el, { asc, desc }) {
   // Notes written at an angle are measured separately, below.
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
     // Visitors' writing (.guest) is shown as it is, never inked as Brandon's.
-    // and "pin it up", which comes and goes, is shown as it is.
-    acceptNode: (n) => (n.parentElement.closest('.turn, .guest, [data-tool="pin"]') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    // and "pin it up", which comes and goes, is shown as it is. Figures
+    // draw themselves (figure.js).
+    acceptNode: (n) => (n.parentElement.closest('.turn, .guest, .diagram, [data-tool="pin"]') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
   });
 
   // Word by word, each at the spot the plain cut put it: Graphite picks
