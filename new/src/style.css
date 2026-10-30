@@ -212,6 +212,29 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
 .sheet .sketch + * { margin-top: var(--L); }
 .sheet.inked .sketch img { opacity: 0; }
 
+/* A figure that draws itself (figure.js), whole rules tall: --rules, or
+   --rules-narrow on a narrow sheet, where it's laid out differently. The
+   pencil is drawn into the paper; what's here are the spots to point at. */
+.sheet .diagram {
+  position: relative;
+  margin: var(--L) 0 0;
+  height: calc(var(--rules, 12) * var(--L));
+}
+@container (max-width: 519px) {
+  .sheet .diagram { height: calc(var(--rules-narrow, var(--rules, 12)) * var(--L)); }
+}
+.sheet .diagram + * { margin-top: var(--L); }
+.diagram-spot {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.diagram-spot:focus-visible { outline: 1px dashed var(--ink); outline-offset: 2px; border-radius: 4px; }
+.diagram-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
 /* An arrow scrawled into the corner where the page lifts, when there's more. */
 .sheet .turn {
   position: absolute;

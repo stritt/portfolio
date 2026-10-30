@@ -140,6 +140,11 @@ uniform sampler2D uInkPrev; // the page above in the pile, whose writing pressed
 uniform vec2 uPrevSize;
 uniform sampler2D uDoodle;  // pencil drawn on the resting sheet by the reader (doodle.js)
 uniform vec2 uDoodleSize;   // CSS px; 0 = none
+uniform sampler2D uFig0;    // a post's drawn figures (figure.js), each covering
+uniform sampler2D uFig1;    // only its own box on the resting sheet; the
+uniform sampler2D uFig2;    // four slots go to whichever are near the view
+uniform sampler2D uFig3;
+uniform vec4 uFigR[4];      // x, y, w, h in the sheet's CSS px (w = 0: none)
 uniform vec2 uStack;        // resting sheet stacked as several: each one's height, the gap between (0 = one)
 uniform vec2 uStackF;       // the same for the sheet being turned
 out vec4 o;
@@ -310,6 +315,21 @@ float restLift(vec2 q, vec2 hs, float seed) {
 // inkAmt below 1 shows it faintly, as writing seen through from the back.
 // prevInk is the writing on the page that lay on top, pressed in as grooves.
 // yo: how far down a stack this sheet lies, where its writing is read from.
+// The figure pencil at a point of the sheet, from whichever box holds it.
+vec4 figAt(vec2 q) {
+  vec4 k = vec4(0.0);
+  vec2 f;
+  f = (q - uFigR[0].xy) / uFigR[0].zw;
+  if (uFigR[0].z > 0.0 && f == clamp(f, 0.0, 1.0)) k += texture(uFig0, f);
+  f = (q - uFigR[1].xy) / uFigR[1].zw;
+  if (uFigR[1].z > 0.0 && f == clamp(f, 0.0, 1.0)) k += texture(uFig1, f);
+  f = (q - uFigR[2].xy) / uFigR[2].zw;
+  if (uFigR[2].z > 0.0 && f == clamp(f, 0.0, 1.0)) k += texture(uFig2, f);
+  f = (q - uFigR[3].xy) / uFigR[3].zw;
+  if (uFigR[3].z > 0.0 && f == clamp(f, 0.0, 1.0)) k += texture(uFig3, f);
+  return k;
+}
+
 Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lamp, float px,
             sampler2D inkTex, vec2 inkSize, float inkAmt, sampler2D prevInk, vec2 prevSize, float doodleOn, float yo) {
   Sheet o;
@@ -418,6 +438,14 @@ Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lam
     }
     alb *= mix(vec3(1.0), c, a * inkAmt);
     graphite = a * step(0.99, inkAmt);
+  }
+  // A post's figures, drawn as the reader gets to them.
+  if (doodleOn > 0.5 && uFigR[0].z + uFigR[1].z + uFigR[2].z + uFigR[3].z > 0.0) {
+    vec4 k = figAt(qi);
+    float peaks = smoothstep(0.3, 0.68, s.r + (hash12(floor(sq * 2.0)) - 0.5) * 0.3);
+    float a = min(1.0, k.a * 1.15) * mix(mix(0.6, 1.0, peaks), 1.0, smoothstep(0.5, 0.95, k.a));
+    alb *= mix(vec3(1.0), k.rgb / max(k.a, 1e-4), a);
+    graphite = max(graphite, a);
   }
   // A reader's doodles, laid into the tooth the same way.
   if (doodleOn > 0.5 && uDoodleSize.x > 0.0) {
@@ -705,6 +733,9 @@ export function createPaper(canvas) {
   let state;
   let doodleTex = null;
   let doodleSize = [0, 0];
+  // Figures: four slots, on texture units 3, 7, 8 and 9.
+  const FIG_UNITS = [3, 7, 8, 9];
+  let figs = [null, null, null, null];
   let fastBuffer = null;
 
   function ensureFastBuffer(w, h) {
@@ -736,6 +767,7 @@ export function createPaper(canvas) {
     // A restored context has lost every texture, doodles included.
     doodleTex = null;
     doodleSize = [0, 0];
+    figs = [null, null, null, null];
     fastBuffer = null;
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -766,7 +798,7 @@ export function createPaper(canvas) {
     const u = {};
     for (const name of [
       "uTex", "uRes", "uDpr", "uView", "uMain", "uMainSeed", "uTilt", "uFlip", "uFold", "uCurl", "uFlipInfo",
-      "uRule", "uHole", "uInch", "uMouse", "uTime", "uFast", "uDark", "uBg", "uLight", "uDay", "uInkMain", "uInkFlip", "uInkSize", "uInkPrev", "uPrevSize", "uDoodle", "uDoodleSize", "uStack", "uStackF",
+      "uRule", "uHole", "uInch", "uMouse", "uTime", "uFast", "uDark", "uBg", "uLight", "uDay", "uInkMain", "uInkFlip", "uInkSize", "uInkPrev", "uPrevSize", "uDoodle", "uDoodleSize", "uFig0", "uFig1", "uFig2", "uFig3", "uFigR", "uStack", "uStackF",
     ]) {
       u[name] = gl.getUniformLocation(prog, name);
     }
@@ -775,6 +807,7 @@ export function createPaper(canvas) {
     gl.uniform1i(u.uInkFlip, 2);
     gl.uniform1i(u.uInkPrev, 4);
     gl.uniform1i(u.uDoodle, 5);
+    FIG_UNITS.forEach((unit, i) => gl.uniform1i(u[`uFig${i}`], unit));
 
     // Bound wherever a sheet has no ink yet.
     const blank = gl.createTexture();
@@ -832,6 +865,33 @@ export function createPaper(canvas) {
       gl.activeTexture(gl.TEXTURE0);
       doodleSize = [w, h];
     },
+    // A post's figure (figure.js): a canvas covering rect = [x, y, w, h] of
+    // the resting sheet, in its CSS px. Re-sent each frame it's drawing;
+    // a canvas of the same size reuses the texture. null clears the slot.
+    figure(slot, src, rect) {
+      if (!src) {
+        if (figs[slot]) figs[slot].rect = [0, 0, 0, 0];
+        return;
+      }
+      const f = (figs[slot] ??= { tex: gl.createTexture(), w: 0, h: 0, rect: [0, 0, 0, 0] });
+      gl.activeTexture(gl.TEXTURE0 + FIG_UNITS[slot]);
+      gl.bindTexture(gl.TEXTURE_2D, f.tex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      if (f.w === src.width && f.h === src.height) {
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, src);
+      } else {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        f.w = src.width;
+        f.h = src.height;
+      }
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.activeTexture(gl.TEXTURE0);
+      f.rect = rect;
+    },
     freeInk(h) {
       if (live(h)) gl.deleteTexture(h.tex);
     },
@@ -886,6 +946,16 @@ export function createPaper(canvas) {
       gl.bindTexture(gl.TEXTURE_2D, doodleSize[0] ? doodleTex : state.blank);
       gl.activeTexture(gl.TEXTURE0);
       gl.uniform2f(u.uDoodleSize, ...doodleSize);
+      // Figures belong to the resting sheet only while it's the one shown.
+      const rects = new Float32Array(16);
+      for (let i = 0; i < 4; i++) {
+        const fig = f.figures !== false ? figs[i] : null;
+        gl.activeTexture(gl.TEXTURE0 + FIG_UNITS[i]);
+        gl.bindTexture(gl.TEXTURE_2D, fig ? fig.tex : state.blank);
+        if (fig) rects.set(fig.rect, i * 4);
+      }
+      gl.uniform4fv(u.uFigR, rects);
+      gl.activeTexture(gl.TEXTURE0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       if (fast) {
         // A single cheap upscale is less work than shading every Retina

@@ -22,6 +22,7 @@ export default defineConfig({
         projects: page("projects/index.html"),
         wall: page("wall/index.html"),
         "interfaces-are-cattle": page("notes/interfaces-are-cattle/index.html"),
+        "how-the-web-works": page("notes/how-the-web-works/index.html"),
       },
     },
   },

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>How the web works — Brandon Strittmatter</title>
+    <!-- A draft: not linked from anywhere or in the sitemap until it's written. -->
+    <meta name="robots" content="noindex" />
+    <link rel="prev" href="/" vite-ignore />
+    <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main class="desk">
+      <article class="sheet" id="sheet">
+        <div class="head">
+          <h1><a href="/"><span aria-hidden="true">← </span>How the web works</a></h1>
+          <time>draft</time>
+        </div>
+
+        <p>
+          [copy: the hook. What actually happens in the second between
+          hitting enter and seeing this page.]
+        </p>
+
+        <!-- Each drawing is src/figures/<data-fig>.js (see figure.js). -->
+        <figure class="diagram" data-fig="visit" style="--rules: 4; --rules-narrow: 5"
+                aria-label="Your own visit to this page, measured: looking up the address, connecting, the handshake, waiting, and the page coming down. Press it to play your visit back, slowed down."></figure>
+
+        <p>1. You type an address. [copy]</p>
+
+        <p>2. Looking it up: DNS. [copy]</p>
+
+        <figure class="diagram" data-fig="dns" style="--rules: 5; --rules-narrow: 6"
+                aria-label="Your browser asks DNS where burcs.dev is, and gets an address back. Press either to send the question."></figure>
+
+        <p>3. Shaking hands. [copy]</p>
+
+        <figure class="diagram" data-fig="handshake" style="--rules: 7; --rules-narrow: 8"
+                aria-label="The handshake between you and the edge: hello, hello and a certificate, finished. Press it to play the handshake."></figure>
+
+        <p>4. Asking the edge, a few miles away. [copy]</p>
+
+        <figure class="diagram" data-fig="edge" style="--rules: 6; --rules-narrow: 10"
+                aria-label="Your browser sends GET to the edge nearby and gets the page back; only on a miss does the edge go to the origin. Press the edge or the origin to send a request."></figure>
+
+        <p>5. The origin, only when it has to. [copy]</p>
+
+        <p>6. Turning bytes into a page. [copy]</p>
+
+        <figure class="diagram" data-fig="render" style="--rules: 14; --rules-narrow: 12"
+                aria-label="An exploded drawing of how this page was made: bytes, the DOM, layout, and the pixels you're reading, each layer peeling up off the last. Point at a layer's name to lift it."></figure>
+
+        <p>[copy: the close.]</p>
+      </article>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
