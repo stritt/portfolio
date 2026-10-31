@@ -36,6 +36,5 @@ export default function handshake(pen, { w, h, data: v, narrow }) {
   return {
     duration: 3.5,
     ...requests([all], () => passes.map((path) => ({ path, d: slow(v.tls / 3) }))),
-    hotspots: [all],
   };
 }

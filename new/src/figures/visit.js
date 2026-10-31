@@ -39,6 +39,8 @@ export default function visit(pen, { w, h, data: v, narrow }) {
   return {
     duration: 3,
     ...requests([all], () => phases.map((p) => ({ phase: p, d: slow(p.ms) })), {
+      // No ring around the whole thing; the cursor is enough.
+      ring: false,
       drawn(ctx, o, { leg, k }) {
         const p = leg.phase;
         const cx = p.x0 + (p.x1 - p.x0) * k;
@@ -50,7 +52,5 @@ export default function visit(pen, { w, h, data: v, narrow }) {
         ctx.fillText(`${Math.round(before + p.ms * k)} ms`, Math.min(Math.max(cx - 14, x0), x1 - 44), ty - (narrow ? 18 : 20));
       },
     }),
-    // No ring around the whole thing; the cursor is enough.
-    hotspots: [all],
   };
 }

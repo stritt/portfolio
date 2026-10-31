@@ -16,6 +16,17 @@
   --ink: #2e2f35;
   --pen: #10288a;
   --marker: #fff09a;
+  --ease-out: cubic-bezier(0.165, 0.84, 0.44, 1);
+  /* Softer pencil for tools, bylines and asides, and the red pencil. */
+  --ink-soft: #55565d;
+  --red: #b8322a;
+  --red-deep: #a0281e;
+  /* Slips of paper laid over the page: the doodle bar, comment tools. */
+  --slip: #f7f3e9;
+  /* Slips are a size down from the sheet: they're tools, not the writing.
+     16px is also the floor for inputs before iOS zooms in on them. */
+  --fs-slip: 16px;
+  --slip-shadow: 0 0 0 1px rgb(0 0 0 / 0.08), 0 1px 1px rgb(0 0 0 / 0.08), 0 10px 22px -6px rgb(0 0 0 / 0.3);
 
   /* Written by main.js from the sheet's width. These are the fallbacks. */
   --W: 816px;
@@ -39,14 +50,20 @@
 html {
   background: #bfbab0;
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
   text-rendering: optimizeLegibility;
 }
 html[data-theme="dark"] { background: #1b1a19; color-scheme: dark; }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100svh;
 }
+
+/* No double-tap-zoom wait on controls, and long-presses don't select their
+   labels or pop the iOS callout. */
+button, a { touch-action: manipulation; }
+button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
 #gl {
   position: fixed;
@@ -84,9 +101,10 @@ body {
   /* Set per page by main.js; the paper drawn under it turns to match. */
   transform: rotate(var(--tilt, 0rad));
   opacity: 0;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.4s var(--ease-out);
 }
 .ready .sheet { opacity: 1; }
+.sheet h1[tabindex="-1"]:focus { outline: none; }
 .sheet.inked {
   -webkit-text-fill-color: transparent;
   /* The WebGL paper already blends the Graphite into its tooth. Once the
@@ -131,7 +149,7 @@ body {
   justify-content: space-between;
   gap: 0 1em;
   letter-spacing: 0.02em;
-  color: #2a2b31;
+  color: var(--ink);
 }
 /* A long title wraps onto the next rule; the right-hand side never splits. */
 .head > :last-child:not(:first-child) { white-space: nowrap; margin-left: auto; }
@@ -154,10 +172,8 @@ body {
   padding: 7px;
   border: 0;
   background: none;
-  color: #2a2b31;
+  color: var(--ink);
   cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
 }
 .scene-control .icon {
   display: block;
@@ -172,8 +188,10 @@ body {
 .icon-moon { --icon-image: url("/icons/moon-b2637829.webp"); }
 .icon-sun { --icon-image: url("/icons/sun-5712f2cb.webp"); }
 .scene-control .icon-window { width: 24px; height: 24px; }
-.scene-control:hover,
 .scene-control:focus-visible { color: var(--pen); }
+@media (hover: hover) and (pointer: fine) {
+  .scene-control:hover { color: var(--pen); }
+}
 .scene-control:focus-visible { outline: 1px dashed currentColor; outline-offset: -4px; }
 .scene-theme .icon-sun,
 html[data-theme="dark"] .scene-theme .icon-moon { display: none; }
@@ -230,7 +248,6 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   border: 0;
   background: none;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 }
 .diagram-spot:focus-visible { outline: 1px dashed var(--ink); outline-offset: 2px; border-radius: 4px; }
 .diagram-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -244,7 +261,7 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   font-size: calc(var(--fs) * 2);
   line-height: 1;
   white-space: nowrap;
-  color: #2a2b31;
+  color: var(--ink);
   /* Brandon's own drawn arrow, turned to point into the corner. */
   transform: rotate(45deg);
   cursor: pointer;
@@ -259,7 +276,7 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   content: "–";
   position: absolute;
   left: 0.2em;
-  color: #2a2b31;
+  color: var(--ink);
 }
 
 /* Text links use the same pencil as the writing, with the hand-drawn line
@@ -272,6 +289,8 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   -webkit-box-decoration-break: clone;
 }
 .sheet a:focus-visible { outline: 1px dashed currentColor; outline-offset: 2px; }
+.drafting .sheet[tabindex]:focus-visible { outline: 1px dashed var(--ink); outline-offset: 8px; }
+.sheet :is(ins.sg, del.sg, mark.hl)[tabindex]:focus-visible { outline: 1px dashed currentColor; outline-offset: 2px; border-radius: 2px; }
 
 /* A highlighter pass, not bold — the pencil has no bold, and it shouldn't. */
 .sheet strong {
@@ -312,9 +331,11 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   height: 74px;
 }
 .can-turn .grip { display: block; }
-.grip.left { left: calc(50% - var(--W) / 2 - 22px); }
-.grip.right { left: calc(50% + var(--W) / 2 - 74px); }
-.grabbing, .grabbing * { cursor: grabbing !important; user-select: none; }
+/* Kept clear of the screen's edges: iOS takes a swipe from the left edge as
+   "back", and the right one mustn't push the page sideways on a phone. */
+.grip.left { left: max(calc(50% - var(--W) / 2 - 22px), calc(24px + env(safe-area-inset-left, 0px))); }
+.grip.right { left: min(calc(50% + var(--W) / 2 - 74px), calc(100% - 120px - env(safe-area-inset-right, 0px))); }
+.grabbing, .grabbing * { cursor: grabbing !important; -webkit-user-select: none; user-select: none; }
 
 ::selection {
   background: var(--marker);
@@ -385,7 +406,7 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
 /* Someone else's suggestions, in red pencil: words they'd add written in,
    words they'd cut crossed out in the same red. */
 .sheet ins.sg {
-  color: #b8322a;
+  color: var(--red);
   text-decoration: none;
   cursor: pointer;
 }
@@ -414,28 +435,33 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   height: 22px;
   margin-top: calc((var(--L) - 22px) / 2);
   padding: 0;
-  border: 1.5px solid #c8382b;
+  border: 1.5px solid var(--red);
   border-radius: 50% 46% 52% 48%;
   background: none;
-  color: #c8382b;
+  color: var(--red);
   font: 400 var(--fs) / 18px var(--font);
   text-align: center;
   transform: rotate(-4deg);
   cursor: pointer;
-  user-select: none;
 }
+/* A finger-sized target around the small circle. */
+.sheet .dm::before { content: ""; position: absolute; inset: -11px -1px; }
 
+/* Comment mode's status, toolbar and compose form are slips of paper in
+   the same pencil and size as the sheet, like the doodle bar. */
+.draft-bar,
+.draft-tools {
+  background: var(--slip);
+  box-shadow: var(--slip-shadow);
+  color: var(--ink);
+  font: var(--fs-slip) / 1.2 var(--font);
+}
 .draft-bar {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: calc(12px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
   z-index: 10;
-  padding: 7px 11px;
-  border-radius: 8px;
-  background: rgb(20 20 22 / 0.78);
-  backdrop-filter: blur(8px);
-  color: #eee;
-  font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+  padding: 7px 12px;
 }
 
 .draft-tools {
@@ -445,49 +471,62 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   z-index: 11;
   display: flex;
   gap: 4px;
-  padding: 5px;
-  border-radius: 10px;
-  background: rgb(20 20 22 / 0.86);
-  backdrop-filter: blur(8px);
-  color: #eee;
-  font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
-  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+  padding: 4px 8px;
+  /* Pops from the side of the selection it sits on; quick, it opens often. */
+  transform-origin: var(--origin, 50% 100%);
+  transition: opacity 150ms var(--ease-out), scale 150ms var(--ease-out), display 150ms allow-discrete;
 }
-.draft-tools[hidden] { display: none; }
+@starting-style { .draft-tools { opacity: 0; scale: 0.97; } }
+.draft-tools[hidden] { display: none; opacity: 0; scale: 0.97; pointer-events: none; transition-duration: 100ms; }
+/* The dark panels (only Brandon sees them): dark native controls and
+   scrollbars, and an edge that still shows against the dark desk. */
+.wall-queue, .tune {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 6px 24px rgb(0 0 0 / 0.25);
+}
+.wall-queue .draft-error { color: #ffb4a8; }
 .draft-tools button {
-  padding: 6px 9px;
+  padding: 4px 6px;
   border: 0;
-  border-radius: 6px;
-  background: rgb(255 255 255 / 0.08);
-  color: inherit;
+  background: none;
+  color: var(--ink-soft);
   font: inherit;
   cursor: pointer;
 }
-.draft-tools button:hover { background: rgb(255 255 255 / 0.18); }
-.draft-tools .draft-primary { background: #fff; color: #111; }
-.draft-compose { display: grid; gap: 6px; width: 260px; padding: 4px; }
+@media (hover: hover) and (pointer: fine) {
+  .draft-tools button:hover { color: var(--ink); }
+}
+.draft-tools button:active { opacity: 0.6; }
+.draft-tools .draft-primary,
+.draft-note .draft-act:first-child:not(:only-child) { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.draft-tools button:focus-visible { outline: 1px dashed currentColor; outline-offset: -2px; }
+.draft-compose { display: grid; gap: 6px; width: 280px; padding: 4px 0; }
 .draft-compose textarea,
 .draft-compose input {
   box-sizing: border-box;
   width: 100%;
-  padding: 7px 8px;
+  padding: 4px 0;
   border: 0;
-  border-radius: 6px;
-  background: rgb(255 255 255 / 0.1);
-  color: #fff;
-  font: 13px/1.35 ui-sans-serif, system-ui, sans-serif;
+  border-bottom: 1px solid rgb(0 0 0 / 0.25);
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font: var(--fs-slip) / 1.35 var(--font);
   resize: vertical;
 }
-.draft-quote { opacity: 0.6; font-style: italic; }
+.draft-compose textarea::placeholder,
+.draft-compose input::placeholder { color: var(--ink-soft); }
+.draft-compose textarea:focus-visible,
+.draft-compose input:focus-visible { outline: 1px dashed currentColor; outline-offset: 2px; }
+.draft-quote { color: var(--ink-soft); }
 .draft-row { display: flex; justify-content: flex-end; gap: 4px; }
 .draft-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
-.draft-error { padding: 4px 6px; color: #ffb4a8; }
+.draft-error { padding: 4px 0; color: var(--red-deep); }
 @media (max-width: 640px) {
-  .draft-tools { max-width: calc(100vw - 16px); font-size: 15px; }
-  .draft-tools button { min-height: 36px; }
+  .draft-tools { max-width: calc(100vw - 16px); }
+  .draft-tools button { min-height: 44px; }
   .draft-compose { width: min(280px, calc(100vw - 32px)); }
-  .draft-compose textarea,
-  .draft-compose input { font-size: 16px; }
 }
 
 /* A comment, opened: a sticky note stuck on the page. */
@@ -501,22 +540,33 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   font: 400 var(--fs) / 1.35 var(--font);
   box-shadow: 0 1px 1px rgb(0 0 0 / 0.08), 0 10px 22px -6px rgb(0 0 0 / 0.3);
   transform: rotate(-1.4deg);
+  transform-origin: 12px 0;
+  transition: opacity 180ms var(--ease-out), scale 180ms var(--ease-out), display 180ms allow-discrete;
 }
-.draft-note[hidden] { display: none; }
+@starting-style { .draft-note { opacity: 0; scale: 0.97; } }
+.draft-note[hidden] { display: none; opacity: 0; scale: 0.97; transition-duration: 120ms; }
+.draft-error:empty { display: none; }
 .draft-note p { margin: 0 0 8px; white-space: pre-wrap; }
-.draft-note-by { font: 12px/1.3 ui-sans-serif, system-ui, sans-serif; opacity: 0.6; }
-.draft-actions { display: flex; gap: 14px; margin-top: 8px; }
+.draft-note-by { color: var(--ink-soft); font-size: var(--fs-slip); }
+.draft-actions { display: flex; gap: 14px; margin-top: 8px; font-size: var(--fs-slip); }
 .draft-note .draft-act {
   margin-top: 0;
   padding: 0;
   border: 0;
   background: none;
-  color: #a0281e;
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  color: var(--red-deep);
+  font: inherit;
   cursor: pointer;
+  position: relative;
 }
-.draft-note .draft-act:first-child:not(:only-child) { font-weight: 600; }
-.draft-note .draft-error { color: #a0281e; font: 12px ui-sans-serif, system-ui, sans-serif; }
+.draft-note .draft-act::before { content: ""; position: absolute; inset: -14px -7px; }
+.draft-note .draft-act:active,
+.doodle-bar button:active,
+.sheet .tool:active { opacity: 0.6; }
+.draft-note .draft-act:focus-visible,
+.sheet .tool:focus-visible,
+.sheet .dm:focus-visible { outline: 1px dashed currentColor; outline-offset: 2px; }
+.draft-note .draft-error { color: var(--red-deep); }
 
 /* Margin notes at the foot of every sheet: doodle on it, or start a draft. */
 .sheet .tools {
@@ -532,7 +582,7 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   font: inherit;
   font-size: var(--fs);
   line-height: var(--L);
-  color: #6a6b72;
+  color: var(--ink-soft);
   background: none;
   border: 0;
   padding: 0 4px;
@@ -548,7 +598,7 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   transform: rotate(-4deg);
   pointer-events: none;
 }
-/* "pin it up" only once there's a doodle of yours to pin. It comes and goes,
+/* "Save doodle" only once there's a doodle of yours to pin. It comes and goes,
    so it sits above the others without moving them (their pencil is drawn
    once, where they lie) and is shown as it is rather than inked. */
 .sheet .tool[data-tool="pin"] {
@@ -556,7 +606,7 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   bottom: 100%;
   visibility: hidden;
   -webkit-text-fill-color: currentColor;
-  color: #55565d;
+  color: var(--ink-soft);
 }
 .doodling.has-doodle .sheet .tool[data-tool="pin"] { visibility: visible; }
 @media (max-width: 640px) {
@@ -571,11 +621,11 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
     margin: var(--L) 0 0;
   }
   .wall-sheet .tool[data-tool="pin"] { position: static; display: none; }
-  .doodling.has-doodle .wall-sheet .tool[data-tool="pin"] { display: inline; }
 }
 .drafting .sheet .tools, .drafting .sheet .leave { display: none; }
 
-/* The save action stays in view while someone draws, including on phones. */
+/* The save action stays in view while someone draws, including on phones,
+   where the sheet itself won't scroll under a finger that's drawing. */
 .doodle-bar {
   position: fixed;
   z-index: 14;
@@ -587,14 +637,14 @@ html[data-theme="dark"] .scene-theme .icon-sun { display: block; }
   gap: 16px;
   max-width: calc(100vw - 24px);
   padding: 10px 16px;
-  border: 1px solid #c4bcae;
-  background: #f7f3e9;
-  box-shadow: 0 4px 18px rgb(0 0 0 / 0.18);
+  background: var(--slip);
+  box-shadow: var(--slip-shadow);
   color: var(--ink);
-  font: 17px/1.1 var(--font);
+  font: var(--fs-slip) / 1.1 var(--font);
   white-space: nowrap;
 }
-.doodle-bar.active { display: flex; }
+.doodle-bar.active { display: flex; transition: opacity 200ms var(--ease-out), translate 200ms var(--ease-out); }
+@starting-style { .doodle-bar.active { opacity: 0; translate: 0 8px; } }
 body:has(.pin-note) .doodle-bar { display: none; }
 .doodle-bar:not(.active) .doodle-help,
 .doodle-bar:not(.active) [data-tool="pin"],
@@ -610,14 +660,16 @@ body:has(.pin-note) .doodle-bar { display: none; }
 }
 .doodle-bar [data-tool="pin"] { text-decoration: underline; text-underline-offset: 4px; }
 .doodle-bar [data-tool="pin"]:disabled { opacity: 0.45; cursor: default; }
-.doodle-bar [data-tool="doodle"]:last-child { color: #696b70; }
+.doodle-bar [data-tool="doodle"]:last-child { color: var(--ink-soft); }
 .doodle-bar button:focus-visible { outline: 1px dashed currentColor; outline-offset: 3px; }
 @media (max-width: 640px) {
-  .doodle-bar, .doodle-bar.active { display: none; }
+  /* Just the two actions on a phone; the page already says what to do. */
+  .doodle-bar .doodle-help { display: none; }
+  .doodle-bar button { min-height: 44px; }
 }
 
 /* Doodling: the sheet takes a pencil (see doodle.js). */
-.doodling .sheet { cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
+.doodling .sheet { cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .doodling .sheet a { cursor: pointer; }
 
 /* Only Brandon sees these outlines while arranging approved doodles. */
@@ -647,7 +699,8 @@ body:has(.pin-note) .doodle-bar { display: none; }
 .sheet .guest p + p { margin-top: 0; }
 .sheet .wall-note { margin-top: var(--L); }
 .sheet .guest-by { text-align: right; padding-right: 2em; }
-.sheet .wall-empty { color: #6a6b72; }
+.sheet .wall-empty { color: var(--ink-soft); margin-top: var(--L); }
+.sheet .wall-empty .tool { padding: 0; text-decoration: underline; text-underline-offset: 4px; }
 .sheet .guest-sig {
   position: absolute;
   font-size: var(--fs);
@@ -664,9 +717,10 @@ body:has(.pin-note) .doodle-bar { display: none; }
 
 .pin-note {
   position: fixed;
-  left: 24px;
-  bottom: 24px;
+  left: calc(24px + env(safe-area-inset-left));
+  bottom: calc(24px + env(safe-area-inset-bottom));
   z-index: 20;
+  transform-origin: 0 100%;
 }
 .pin-note input {
   box-sizing: border-box;
@@ -680,6 +734,7 @@ body:has(.pin-note) .doodle-bar { display: none; }
   color: inherit;
   outline: none;
 }
+.pin-note input:focus-visible { outline: 1px dashed currentColor; outline-offset: 2px; }
 @media (max-width: 640px) {
   .pin-note {
     top: calc(18px + env(safe-area-inset-top));
@@ -687,6 +742,7 @@ body:has(.pin-note) .doodle-bar { display: none; }
     left: 50%;
     max-width: calc(100vw - 64px);
     transform: translateX(-50%) rotate(-1.4deg);
+    transform-origin: 50% 0;
   }
 }
 /* Brandon's queue on /wall/. */
@@ -695,7 +751,6 @@ body:has(.pin-note) .doodle-bar { display: none; }
   max-height: calc(100dvh - 24px);
   overscroll-behavior: contain;
   touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
   position: fixed;
   top: 12px;
@@ -751,3 +806,8 @@ body:has(.pin-note) .doodle-bar { display: none; }
   cursor: pointer;
 }
 .wall-actions button:first-child { background: #fff; color: #111; }
+
+/* Less motion: panels and the page just appear. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .draft-tools, .draft-note, .doodle-bar.active { transition: none; }
+}

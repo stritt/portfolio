@@ -4,8 +4,8 @@
 // them into the tooth like the writing: flecked where the pencil was light,
 // filled where it was pressed, catching the light as you move.
 //
-// Your own strokes stay on this page until you turn it or press c, or you
-// pin them up for Brandon to approve (wall.js). Doodles he's approved are
+// Your own strokes stay on this page until you turn it, or you save them
+// for Brandon to approve (wall.js); c or ⌘Z takes back the last stroke. Doodles he's approved are
 // drawn on their page for everyone, each signed by whoever drew it.
 
 import { rng } from "./hand.js";
@@ -34,8 +34,8 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   let arranging = false;
   const handles = new Map();
 
-  // The sheet's margin tools can be below the viewport (and are absent on
-  // small screens). Keep the action next to the drawing while it's in use.
+  // The sheet's margin tools can be below the viewport. Keep the action next
+  // to the drawing while it's in use.
   const bar = document.createElement("div");
   bar.className = "doodle-bar";
   const start = document.createElement("button");
@@ -60,7 +60,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
   const syncBar = () => {
     bar.classList.toggle("active", active);
     save.disabled = mine.length === 0;
-    help.textContent = mine.length ? "Ready to pin to the wall" : "Draw anywhere on the page";
+    help.textContent = mine.length ? "Ready to save to the wall" : "Draw anywhere on the page";
     document.documentElement.classList.toggle("has-doodle", mine.length > 0);
   };
   const set = (v) => {
@@ -68,6 +68,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     active = v;
     stroke = null;
     document.documentElement.classList.toggle("doodling", v);
+    for (const b of document.querySelectorAll('.sheet [data-tool="doodle"]')) b.setAttribute("aria-pressed", String(v));
     syncBar();
   };
   document.addEventListener("click", (e) => {
@@ -190,6 +191,7 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     ctx.fillStyle = INK;
     sheet.querySelectorAll(".guest-sig").forEach((s) => s.remove());
     const w = sheet.offsetWidth;
+    const sigs = [];
     for (const g of guests) {
       if (g.hidden) continue;
       const k = w / g.w;
@@ -205,10 +207,15 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
       sig.style.left = `${Math.min(x + (g.dx || 0) * k, w - 12)}px`;
       sig.style.top = `${y + (g.dy || 0) * k + 2}px`;
       sheet.append(sig);
-      const css = getComputedStyle(sig);
+      sigs.push(sig);
+    }
+    // Signatures are placed first and measured together: one layout, not one each.
+    if (sigs.length) {
+      const css = getComputedStyle(sigs[0]);
       const fs = parseFloat(css.fontSize);
-      drawGraphiteSignature(ctx, sig.textContent, `${fs}px ${css.fontFamily}`, fs,
-        parseFloat(sig.style.left) - sig.offsetWidth, parseFloat(sig.style.top), sig.offsetWidth);
+      const widths = sigs.map((s) => s.offsetWidth);
+      sigs.forEach((s, i) => drawGraphiteSignature(ctx, s.textContent, `${fs}px ${css.fontFamily}`, fs,
+        parseFloat(s.style.left) - widths[i], parseFloat(s.style.top), widths[i]));
     }
     if (mine.length) drawStrokes(ctx, mine, 1, rng(11));
     syncHandles();
@@ -249,6 +256,15 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     page = location.pathname;
     guests = [];
     canArrange = false;
+    // Doodles only live on the wall; other sheets don't need a canvas their size.
+    if (page !== "/wall/") {
+      canvas = ctx = null;
+      mine = [];
+      paper.doodle(null);
+      redraw();
+      syncBar();
+      return;
+    }
     fresh();
     refreshGuests();
   }
@@ -352,19 +368,35 @@ export function startDoodle({ on, paper, sheet, rect, tilt, busy, redraw }) {
     document.querySelector(".pin-note")?.remove();
     load();
   });
+  // A new size (a phone turned, notes loading in) keeps what's been drawn,
+  // scaled with the sheet's width.
   let lastSize = `${sheet.offsetWidth}x${sheet.offsetHeight}`;
+  let lastW = sheet.offsetWidth;
   window.addEventListener("resize", () => {
+    if (!ctx) return;
     const size = `${sheet.offsetWidth}x${sheet.offsetHeight}`;
     if (size !== lastSize) {
+      const k = sheet.offsetWidth / lastW;
+      const kept = mine.map((s) => s.map((v, i) => (i % 3 === 2 ? v : v * k)));
       lastSize = size;
+      lastW = sheet.offsetWidth;
       fresh();
+      if (kept.length) {
+        mine = kept;
+        paint();
+        syncBar();
+      }
     }
   });
 
-  // c clears your own strokes.
+  // c, or ⌘Z / Ctrl+Z, takes back your last stroke.
   window.addEventListener("keydown", (e) => {
-    if (active && e.key === "c" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.target.closest?.("input, textarea, [contenteditable]")) {
-      fresh();
-    }
+    if (!active || stroke || !mine.length || e.altKey || e.shiftKey) return;
+    if (e.target.closest?.("input, textarea, [contenteditable]")) return;
+    if (!(e.metaKey || e.ctrlKey ? e.key.toLowerCase() === "z" : e.key === "c")) return;
+    e.preventDefault();
+    mine.pop();
+    paint();
+    syncBar();
   });
 }

@@ -59,7 +59,7 @@ async function api(method, sub = "", body, { query = "", headers = {} } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
+  if (!res.ok) throw new Error(data.error || `Couldn’t reach the server (${res.status}). Try reloading.`);
   return data;
 }
 
@@ -294,6 +294,7 @@ export function startDraft({ sheet, untilt }) {
 
   // Status in the corner: what this mode is, and how it stands.
   const bar = el("div", "draft-bar");
+  bar.setAttribute("role", "status");
   document.body.append(bar);
   const status = (text) => {
     const comments = annotations.filter((a) => a.kind === "comment").length;
@@ -328,6 +329,9 @@ export function startDraft({ sheet, untilt }) {
     if (data.html != null && (fresh || !author)) sheet.innerHTML = clean(data.html);
     // Only the author writes on the sheet; everyone else selects and comments.
     sheet.contentEditable = author ? "true" : "false";
+    // Readers have no caret, so the sheet itself takes focus; ↑ ↓ pick a paragraph.
+    if (author) sheet.removeAttribute("tabindex");
+    else sheet.tabIndex = 0;
     sheet.spellcheck = false;
     if (author) document.execCommand("defaultParagraphSeparator", false, "p");
     render(true);
@@ -408,7 +412,10 @@ export function startDraft({ sheet, untilt }) {
 
   // Cross out the selection in the author's own pencil.
   function remove() {
-    if (author) document.execCommand("strikeThrough");
+    if (!author) return;
+    // From a toolbar button reached by keyboard, the sheet isn't focused.
+    sheet.focus({ preventScroll: true });
+    document.execCommand("strikeThrough");
   }
 
   // ---- suggestions (anyone but the author) ----
@@ -546,6 +553,13 @@ export function startDraft({ sheet, untilt }) {
 
   // ---- marks and margin notes ----
 
+  // Suggestions and highlights have no margin number: they open themselves.
+  const openable = (m, label) => {
+    m.tabIndex = 0;
+    m.setAttribute("role", "button");
+    m.setAttribute("aria-label", label);
+  };
+
   function render(force) {
     if (!force && document.activeElement === sheet && (author || sheet.querySelector(".pending"))) {
       dirtyMarks = true;
@@ -568,12 +582,14 @@ export function startDraft({ sheet, untilt }) {
         return m;
       });
       if (a.kind === "comment" && marks[0]) firsts.push([a, marks[0]]);
+      else if (marks[0]) openable(marks[0], a.kind === "delete" ? `Suggestion by ${a.name}: cross out “${a.quote}”` : `Highlight by ${a.name || "someone"}`);
     }
     for (const [a, range] of found) {
       if (a.kind !== "insert") continue;
       const ins = el("ins", owners[a.id] ? "sg mine" : "sg", a.text);
       ins.dataset.a = a.id;
       ins.contentEditable = "false";
+      openable(ins, `Suggestion by ${a.name}: add “${a.text.trim()}”`);
       range.insertNode(ins);
     }
 
@@ -595,6 +611,7 @@ export function startDraft({ sheet, untilt }) {
           dot.style.top = `${top}px`;
           dot.style.setProperty("--n", n);
           dot.title = `${a.name}: ${a.text}`;
+          dot.setAttribute("aria-label", `Comment ${i + 1} by ${a.name}`);
           sheet.append(dot);
         });
     });
@@ -621,10 +638,14 @@ export function startDraft({ sheet, untilt }) {
     const x = Math.min(Math.max(8, rect.left + rect.width / 2 - w / 2), innerWidth - w - 8);
     const above = rect.top - tools.offsetHeight - 10;
     const y = above > 8 ? above : rect.bottom + 10;
-    tools.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    // translate, not transform: the entrance scales from the selection's side
+    // without scaling the offset too.
+    tools.style.translate = `${Math.round(x)}px ${Math.round(y)}px`;
+    tools.style.setProperty("--origin", above > 8 ? "50% 100%" : "50% 0");
   }
 
   function showTools() {
+    if (tools.contains(document.activeElement)) return;
     if (tools.dataset.mode === "compose" || tools.dataset.mode === "name") return;
     const range = selectionOnSheet();
     if (!range) {
@@ -640,8 +661,10 @@ export function startDraft({ sheet, untilt }) {
   }
 
   function hideTools() {
+    const had = tools.contains(document.activeElement);
     tools.hidden = true;
     tools.dataset.mode = "";
+    if (had) sheet.focus({ preventScroll: true });
   }
 
   function button(label, onclick, cls = "") {
@@ -659,13 +682,53 @@ export function startDraft({ sheet, untilt }) {
     selTimer = setTimeout(showTools, 180);
   });
 
+  // Keyboard: ↑ ↓ on the focused sheet select a paragraph at a time (readers
+  // only), and Tab from a selection goes to the toolbar.
+  const blocks = () => [...sheet.querySelectorAll("p, li, h2, h3")].filter((b) => b.textContent.trim() && !b.querySelector("p, li"));
+  sheet.addEventListener("keydown", (e) => {
+    if (e.target !== sheet || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Tab" && !e.shiftKey && tools.dataset.mode !== "compose" && tools.dataset.mode !== "name") {
+      clearTimeout(selTimer);
+      showTools();
+      if (tools.hidden) return;
+      e.preventDefault();
+      tools.querySelector("button").focus();
+      return;
+    }
+    if (author || e.shiftKey || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+    const list = blocks();
+    const range = selectionOnSheet();
+    const at = range ? list.findIndex((b) => b.contains(range.startContainer)) : -1;
+    const next = at < 0 ? list.findIndex((b) => b.getBoundingClientRect().bottom > 0) : at + (e.key === "ArrowDown" ? 1 : -1);
+    if (!list[next]) return;   // past either end: scroll as usual
+    e.preventDefault();
+    const r = document.createRange();
+    r.selectNodeContents(list[next]);
+    getSelection().removeAllRanges();
+    getSelection().addRange(r);
+    list[next].scrollIntoView({ block: "nearest" });
+  });
+  sheet.addEventListener("focus", () => !author && sheet.matches(":focus-visible") && status("↑ ↓ to pick a paragraph, then Tab to comment"));
+  sheet.addEventListener("blur", () => !author && status());
+  tools.addEventListener("keydown", (e) => {
+    if (tools.dataset.mode !== "pick") return;
+    if (e.key === "Escape" || (e.key === "Tab" && e.shiftKey && e.target === tools.firstElementChild)) {
+      e.preventDefault();
+      sheet.focus({ preventScroll: true });
+    }
+  });
+
   function flash(message) {
     let msg = tools.querySelector(".draft-error");
-    if (!msg) tools.append((msg = el("div", "draft-error")));
+    if (!msg) {
+      msg = el("div", "draft-error");
+      msg.setAttribute("role", "alert");
+      tools.append(msg);
+    }
     msg.textContent = message;
   }
 
-  // A name before someone's first suggestion, so Brandon knows whose it is.
+  // A name before someone's first suggestion, so I know whose it is.
   function ensureName() {
     if (author || store.get("draftName", "")) return true;
     askName();
@@ -680,9 +743,13 @@ export function startDraft({ sheet, untilt }) {
     tools.dataset.mode = "name";
     tools.replaceChildren();
     const form = el("form", "draft-compose");
-    form.append(el("div", "draft-quote", "Your name, so Brandon knows whose suggestions these are"));
+    form.append(el("div", "draft-quote", "Your name, so I know who's suggesting"));
     const name = quiet(el("input"));
     name.placeholder = "Your name";
+    name.setAttribute("aria-label", "Your name");
+    name.autocapitalize = "words";
+    name.enterKeyHint = "go";
+    name.required = true;
     name.maxLength = 40;
     form.append(name);
     const row = el("div", "draft-row");
@@ -717,6 +784,8 @@ export function startDraft({ sheet, untilt }) {
     form.append(el("div", "draft-quote", `“${anchor.quote.length > 80 ? anchor.quote.slice(0, 80) + "…" : anchor.quote}”`));
     const text = quiet(el("textarea"));
     text.placeholder = "Leave a note…";
+    text.setAttribute("aria-label", "Your comment");
+    text.required = true;
     text.maxLength = 1000;
     text.rows = 3;
     form.append(text);
@@ -724,6 +793,10 @@ export function startDraft({ sheet, untilt }) {
     if (!author) {
       name = quiet(el("input"));
       name.placeholder = "Your name";
+      name.setAttribute("aria-label", "Your name");
+      name.autocapitalize = "words";
+      name.enterKeyHint = "send";
+      name.required = true;
       name.maxLength = 40;
       name.value = store.get("draftName", "");
       form.append(name);
@@ -736,11 +809,16 @@ export function startDraft({ sheet, untilt }) {
     trap.className = "draft-trap";
     form.append(trap);
     const row = el("div", "draft-row");
-    row.append(button("Cancel", hideTools), el("button", "draft-primary", author ? "Post" : "Send for approval"));
+    const label = author ? "Post" : "Send for approval";
+    const send = el("button", "draft-primary", label);
+    row.append(button("Cancel", hideTools), send);
     form.append(row);
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (send.disabled) return;
       if (name) store.set("draftName", name.value.trim());
+      send.disabled = true;
+      send.textContent = "Sending…";
       try {
         const res = await api("POST", "/annotations", {
           kind: "comment",
@@ -752,7 +830,7 @@ export function startDraft({ sheet, untilt }) {
         getSelection().removeAllRanges();
         hideTools();
         if (res.pending) {
-          status("Comment sent. It'll appear once Brandon approves it.");
+          status("Comment sent. It’ll show up once I’ve read it.");
         } else {
           owners[res.annotation.id] = res.owner;
           store.set("draftOwners", owners);
@@ -762,6 +840,9 @@ export function startDraft({ sheet, untilt }) {
         }
       } catch (err) {
         flash(err.message);
+      } finally {
+        send.disabled = false;
+        send.textContent = label;
       }
     });
     form.addEventListener("keydown", (e) => {
@@ -778,7 +859,21 @@ export function startDraft({ sheet, untilt }) {
 
   const note = el("div", "draft-note");
   note.hidden = true;
+  note.tabIndex = -1;
+  note.setAttribute("role", "dialog");
   document.body.append(note);
+  let opener = null;
+
+  // Hide the note; if focus was in it, give it back to what opened it.
+  function closeNote() {
+    if (note.hidden) return;
+    const had = note.contains(document.activeElement);
+    note.hidden = true;
+    if (!had) return;
+    const id = note.dataset.a;
+    const back = opener?.isConnected ? opener : sheet.querySelector(`.dm[data-a="${id}"], [data-a="${id}"][tabindex]`);
+    (back ?? sheet).focus({ preventScroll: true });
+  }
 
   async function drop(id) {
     await api("DELETE", "/annotations", null, { query: `&id=${id}`, headers: owners[id] ? { "x-owner": owners[id] } : {} });
@@ -802,15 +897,21 @@ export function startDraft({ sheet, untilt }) {
     if (!a) return;
     hideTools();
     note.replaceChildren();
+    opener = anchorEl;
+    note.dataset.a = id;
+    note.setAttribute("aria-label", a.kind === "comment" ? `Comment by ${a.name}` : `Suggestion by ${a.name || "someone"}`);
     const act = (label, fn) =>
       button(label, async () => {
         try {
           await fn();
-          note.hidden = true;
           render(true);
           status();
+          closeNote();
         } catch (err) {
-          note.append(el("div", "draft-error", err.message));
+          note.querySelector(".draft-error")?.remove();
+          const msg = el("div", "draft-error", err.message);
+          msg.setAttribute("role", "alert");
+          note.append(msg);
         }
       }, "draft-act");
     const actions = el("div", "draft-actions");
@@ -832,6 +933,7 @@ export function startDraft({ sheet, untilt }) {
     const x = Math.min(Math.max(8, r.left - 12), innerWidth - note.offsetWidth - 8);
     note.style.left = `${x + scrollX}px`;
     note.style.top = `${r.bottom + 8 + scrollY}px`;
+    (note.querySelector(".draft-act") ?? note).focus({ preventScroll: true });
   }
 
   document.addEventListener("click", (e) => {
@@ -843,8 +945,20 @@ export function startDraft({ sheet, untilt }) {
     if (!note.contains(e.target)) note.hidden = true;
   });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      // Readers tab to a suggestion; the author, inside the editable sheet,
+      // uses Alt+Enter at the caret.
+      const t = e.target === sheet
+        ? e.altKey && e.key === "Enter" && getSelection().anchorNode?.parentElement?.closest("ins.sg[data-a], del.sg[data-a], mark[data-a]")
+        : e.target.closest?.("ins.sg[data-a], del.sg[data-a], mark.hl[data-a]");
+      if (t && sheet.contains(t)) {
+        e.preventDefault();
+        openNote(t.dataset.a, t);
+        return;
+      }
+    }
     if (e.key === "Escape") {
-      note.hidden = true;
+      closeNote();
       if (tools.dataset.mode === "pick") hideTools();
     }
   });
@@ -853,10 +967,16 @@ export function startDraft({ sheet, untilt }) {
 
   window.addEventListener("sheet:swap", () => {
     hideTools();
-    note.hidden = true;
+    closeNote();
     load(true).then(connect);
   });
-  window.addEventListener("resize", () => render());
+  // Safari fires resize as its toolbar moves; only a new width moves the marks.
+  let lastWidth = sheet.offsetWidth;
+  window.addEventListener("resize", () => {
+    if (sheet.offsetWidth === lastWidth) return;
+    lastWidth = sheet.offsetWidth;
+    render();
+  });
 
   status("Draft · loading…");
   load(true).then(connect);

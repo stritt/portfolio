@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>burcs.dev</title>
+    <link>https://burcs.dev/</link>
+    <description>Writing by Brandon Strittmatter.</description>
+    <language>en</language>
+    <atom:link href="https://burcs.dev/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>Interfaces are cattle, not pets…</title>
+      <link>https://burcs.dev/notes/interfaces-are-cattle/</link>
+      <guid>https://burcs.dev/notes/interfaces-are-cattle/</guid>
+      <pubDate>Tue, 20 Oct 2026 00:00:00 GMT</pubDate>
+      <description>Why I won't be saving any dashboards: when an interface takes seconds to generate, it's easier to just prompt again.</description>
+    </item>
+  </channel>
+</rss>

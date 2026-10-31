@@ -52,6 +52,7 @@ try {
 const CYCLE_LIGHTS = ["window", "golden", "blinds", "moon"];
 scene.light = CYCLE_LIGHTS[Math.floor(Math.random() * CYCLE_LIGHTS.length)];
 if (!["light", "dark"].includes(scene.theme)) scene.theme = null;
+if (!BACKGROUNDS.includes(scene.bg)) scene.bg = null;
 let preferredTheme = scene.theme;
 const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 {
@@ -304,8 +305,6 @@ function resize() {
     paper.resize(width, height, dpr);
   }
   dirty = true;
-  // Ink is drawn for one sheet width and pixel ratio; redraw for the new one
-  // once the resize settles, showing the plain cut meanwhile.
   // Safari fires resize as its browser chrome moves. Only a real canvas or
   // layout change should make a held corner fall out of the reader's hand.
   if (drag && geometryChanged) {
@@ -313,6 +312,8 @@ function resize() {
     endFlip();
     document.body.classList.remove("grabbing");
   }
+  // Ink is drawn for one sheet width and pixel ratio; redraw for the new one
+  // once the resize settles, showing the plain cut meanwhile.
   if (ink && lastInkSize !== inkSize()) {
     lastInkSize = inkSize();
     ink.reset();
@@ -355,7 +356,7 @@ function showMainInk(path) {
       sheet.classList.add("inked");
       dirty = true;
     })
-    .catch(() => {});
+    .catch((err) => err.message === "stale ink" || console.error(err));
 }
 
 // Draw the ink for a page not on screen yet, so it's ready to turn to. Its
@@ -542,6 +543,9 @@ window.addEventListener("popstate", (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
   if (e.target.closest?.("input, textarea, select, [contenteditable], .wall-queue")) return;
+  // In draft mode, arrows move through a selection (caret browsing, or the
+  // paragraph picker), not to the next page.
+  if (drafting && sheet.contains(getSelection().anchorNode)) return;
   const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
   const to = dir > 0 ? rel.next : dir < 0 ? rel.prev : null;
   if (!to || drag) return;
@@ -599,6 +603,8 @@ function jumpScroll(y) {
 }
 
 function swap(page, path) {
+  // The link that turned the page goes with it; keep focus on the new sheet.
+  const hadFocus = sheet.contains(document.activeElement);
   sheet.className = page.cls;
   sheet.innerHTML = page.html;
   syncPageHead(page);
@@ -614,6 +620,11 @@ function swap(page, path) {
   idle(prefetchLinkedInk, { timeout: 2000 });
   dirty = true;
   window.dispatchEvent(new CustomEvent("sheet:swap", { detail: { path } }));
+  if (hadFocus) {
+    const h = sheet.querySelector("h1");
+    h.tabIndex = -1;
+    h.focus({ preventScroll: true });
+  }
 }
 
 // The wall's notes are filled in after the sheet is laid out.

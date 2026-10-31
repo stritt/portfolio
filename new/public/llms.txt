@@ -5,8 +5,9 @@
 The pages below contain readable HTML text; the pencil and paper effects are decorative.
 
 - [Home](https://burcs.dev/): current work, background, and contact links.
-- [Interfaces are cattle, not pets...](https://burcs.dev/notes/interfaces-are-cattle/): an essay about disposable, generated interfaces and saved dashboards, published October 20, 2026.
+- [Interfaces are cattle, not pets…](https://burcs.dev/notes/interfaces-are-cattle/): an essay about disposable, generated interfaces and saved dashboards, published October 20, 2026.
 - [Things I'm tinkering with](https://burcs.dev/projects/): side projects and their links.
 - [The wall](https://burcs.dev/wall/): visitor notes and doodles.
 
 Contact: [hello@burcs.dev](mailto:hello@burcs.dev)
+Feed: [RSS](https://burcs.dev/rss.xml)

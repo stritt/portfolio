@@ -38,12 +38,14 @@ function line(w, color, rnd) {
 }
 
 export function underline(root) {
+  // Measure every link, then draw: setting one doesn't make the next re-lay out.
+  const lines = [];
   for (const a of root.querySelectorAll("a[href]:not(.tool):not(.turn)")) {
     const rect = a.getClientRects()[0];
     if (!rect) continue;
     let seed = 2166136261;
     for (const c of a.getAttribute("href") + a.textContent) seed = Math.imul(seed ^ c.charCodeAt(0), 16777619);
-    const svg = line(Math.max(8, Math.round(rect.width)), getComputedStyle(a).color, rng(seed >>> 0));
-    a.style.setProperty("--line", `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
+    lines.push([a, line(Math.max(8, Math.round(rect.width)), getComputedStyle(a).color, rng(seed >>> 0))]);
   }
+  for (const [a, svg] of lines) a.style.setProperty("--line", `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 }

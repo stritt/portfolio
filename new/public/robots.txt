@@ -1,6 +1,4 @@
 User-agent: *
-Disallow: /api/comments
-Disallow: /api/draft
-Disallow: /api/presence
+Disallow: /api/
 
 Sitemap: https://burcs.dev/sitemap.xml

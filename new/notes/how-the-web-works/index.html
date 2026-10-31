@@ -8,6 +8,19 @@
     <meta name="robots" content="noindex" />
     <link rel="prev" href="/" vite-ignore />
     <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!-- The theme before first paint, the same way main.js picks it, so a
+         dark desk doesn't flash light on every load. And if the font or the
+         scripts are slow to arrive, show the page anyway after 3s. -->
+    <script>
+      setTimeout(() => document.documentElement.classList.add("ready"), 3000);
+      try {
+        const t = new URLSearchParams(location.search).get("theme") || JSON.parse(localStorage.getItem("scene") || "{}").theme;
+        document.documentElement.dataset.theme = ["light", "dark"].includes(t) ? t : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      } catch {}
+    </script>
+    <noscript><style>.sheet { opacity: 1; }</style></noscript>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>

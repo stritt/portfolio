@@ -298,8 +298,6 @@ struct Sheet {
   float under;  // darkening of whatever lies beneath: cast shadow, or the hole's
 };
 
-// One sheet of loose-leaf. r is its centre and half-size; seed picks a
-// different patch of paper stock so no two sheets share grain.
 // A sheet never lies quite flat: one bottom corner (which, by seed) keeps a
 // little lift from being torn off a pad. Height in CSS px.
 float restLift(vec2 q, vec2 hs, float seed) {
@@ -314,7 +312,6 @@ float restLift(vec2 q, vec2 hs, float seed) {
 // into the paper here so it can sit in the tooth and catch the light;
 // inkAmt below 1 shows it faintly, as writing seen through from the back.
 // prevInk is the writing on the page that lay on top, pressed in as grooves.
-// yo: how far down a stack this sheet lies, where its writing is read from.
 // The figure pencil at a point of the sheet, from whichever box holds it.
 vec4 figAt(vec2 q) {
   vec4 k = vec4(0.0);
@@ -330,6 +327,13 @@ vec4 figAt(vec2 q) {
   return k;
 }
 
+// One sheet of loose-leaf. r is its centre and half-size; seed picks a
+// different patch of paper stock so no two sheets share grain. The sheet's
+// pencil (premultiplied, sheet-local, inkSize in CSS px; 0 = none) is laid
+// into the paper here so it can sit in the tooth and catch the light;
+// inkAmt below 1 shows it faintly, as writing seen through from the back.
+// prevInk is the writing on the page that lay on top, pressed in as grooves.
+// yo: how far down a stack this sheet lies, where its writing is read from.
 Sheet sheet(vec2 p, vec4 r, float seed, vec3 L, vec3 light, float sun, float lamp, float px,
             sampler2D inkTex, vec2 inkSize, float inkAmt, sampler2D prevInk, vec2 prevSize, float doodleOn, float yo) {
   Sheet o;

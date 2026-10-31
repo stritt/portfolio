@@ -47,14 +47,14 @@ export function along(pts, k) {
 
 // How long a stretch of the reader's visit takes on the page: slowed down
 // enough to follow, but never so slow it drags.
-export const slow = (ms, extra = 0) => Math.min(1.8, Math.max(0.45, ((Number.isFinite(ms) ? ms : 40) * 14) / 1000)) + extra;
+export const slow = (ms) => Math.min(1.8, Math.max(0.45, ((Number.isFinite(ms) ? ms : 40) * 14) / 1000));
 
 export const spot = (id, label, b, pad = 6) => ({ id, label, x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 });
 
 // Pressing a spot sends a request: trip(id) gives the legs it travels,
 // each { path, d } (a polyline, seconds), plus anything extra to draw
-// with it. Pointing at a spot rings it in pencil.
-export function requests(hotspots, trip, { drawn } = {}) {
+// with it. Pointing at a spot rings it in pencil, unless ring is false.
+export function requests(hotspots, trip, { drawn, ring = true } = {}) {
   return {
     hotspots,
     on(kind, id, state) {
@@ -69,7 +69,7 @@ export function requests(hotspots, trip, { drawn } = {}) {
     },
     busy: (state) => !!state.trip,
     overlay(ctx, { state, pen: o }) {
-      for (const s of hotspots) {
+      for (const s of ring ? hotspots : []) {
         const k = state.springs[s.id]?.v ?? 0;
         if (k > 0.01) o.ring(ctx, s.x + s.w / 2, s.y + s.h / 2, s.w / 2 + 6, s.h / 2 + 8, { upto: k, seed: s.id.length * 31 });
       }
@@ -81,7 +81,8 @@ export function requests(hotspots, trip, { drawn } = {}) {
         return;
       }
       const leg = trip.legs.find((l) => e < l.t0 + l.d) ?? trip.legs[trip.legs.length - 1];
-      const k = Math.min(1, Math.max(0, (e - leg.t0) / leg.d));
+      // With less motion asked for, the dot steps from stop to stop.
+      const k = state.reduced ? 1 : Math.min(1, Math.max(0, (e - leg.t0) / leg.d));
       if (leg.path) {
         const [px, py] = along(leg.path, k);
         o.dot(ctx, px, py, 4);

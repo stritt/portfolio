@@ -35,7 +35,7 @@ export async function wallApi(method, { sub = "", query = "", body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
+  if (!res.ok) throw new Error(data.error || `Couldn’t reach the server (${res.status}). Try reloading.`);
   return data;
 }
 
@@ -50,7 +50,7 @@ async function commentApi(method, slug, { sub = "", query = "" } = {}) {
     headers: { ...(key ? { "x-draft-key": key } : {}) },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
+  if (!res.ok) throw new Error(data.error || `Couldn’t reach the server (${res.status}). Try reloading.`);
   return data;
 }
 
@@ -70,23 +70,53 @@ const quiet = (input) => {
   return input;
 };
 
-// A sticky note: sign it and pin it up. send(name) does the pinning.
+// A sticky note: sign it and save it to the wall. send(name) does the saving.
 export function pinUp({ title, send, onSuccess }) {
   document.querySelector(".pin-note")?.remove();
+  const opener = document.activeElement;
   const note = el("form", "draft-note pin-note");
-  note.append(el("p", null, title), el("p", "draft-note-by", "Brandon reads everything before it goes up."));
+  note.tabIndex = -1;
+  note.setAttribute("aria-label", title);
+  note.append(el("p", null, title), el("p", "draft-note-by", "I read everything before it goes up."));
   const name = quiet(el("input", "pin-name"));
   name.placeholder = "Sign it";
+  name.setAttribute("aria-label", "Your name, to sign the doodle");
+  name.autocapitalize = "words";
+  name.enterKeyHint = "done";
+  name.required = true;
   name.maxLength = 40;
   name.value = store.get("wallName", "");
   const err = el("p", "draft-error");
+  err.setAttribute("role", "alert");
+  // In the page before it's filled, so the confirmation is announced.
+  const said = el("p");
+  said.setAttribute("role", "status");
   const pin = el("button", "draft-act", "Save doodle");
   const later = el("button", "draft-act", "Not now");
   later.type = "button";
-  later.onclick = () => note.remove();
   const actions = el("div", "draft-actions");
   actions.append(pin, later);
-  note.append(name, actions, err);
+  note.append(name, actions, err, said);
+
+  // Closing hands focus back to what opened the note, or the next best thing
+  // still on screen (saving turns doodling off, which hides the bar).
+  let timer = 0, left = 3200, since = 0;
+  const visibility = new AbortController();
+  const close = () => {
+    clearTimeout(timer);
+    visibility.abort();
+    if (!note.isConnected) return;
+    const had = note.contains(document.activeElement);
+    note.remove();
+    if (!had) return;
+    const back = [opener, document.querySelector('.sheet [data-tool="doodle"]'), document.querySelector("#sheet h1")]
+      .find((n) => n?.isConnected && n.getClientRects().length);
+    if (back?.tagName === "H1") back.tabIndex = -1;
+    back?.focus({ preventScroll: true });
+  };
+  later.onclick = close;
+  note.addEventListener("keydown", (e) => e.key === "Escape" && close());
+
   note.addEventListener("submit", async (e) => {
     e.preventDefault();
     const n = name.value.trim();
@@ -97,15 +127,23 @@ export function pinUp({ title, send, onSuccess }) {
     try {
       await send(n);
       onSuccess?.();
-      note.replaceChildren(el("p", null, "Saved. It'll go up once Brandon's had a look."));
-      setTimeout(() => note.remove(), 3200);
+      for (const c of [...note.children]) if (c !== said) c.remove();
+      said.textContent = "Saved. It’ll go up once I’ve had a look.";
+      note.focus({ preventScroll: true });
+      // The thanks stays up for 3.2s of it actually being seen.
+      const tick = () => { since = Date.now(); timer = setTimeout(close, left); };
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) { clearTimeout(timer); left -= Date.now() - since; }
+        else tick();
+      }, { signal: visibility.signal });
+      tick();
     } catch (error) {
       err.textContent = error.message;
       pin.disabled = false;
     }
   });
   document.body.append(note);
-  name.focus();
+  (name.value ? pin : name).focus();
 }
 
 // A note in its writer's hand: a line per line, then the signature.
@@ -142,12 +180,14 @@ export async function showArticleReview() {
   const path = location.pathname;
   const post = reviewPosts.find(({ slug }) => `/${slug}/` === path);
   if (!post) return;
+  // The review cookie is HttpOnly, so ask: anyone else gets author: false.
+  let author = false;
   try {
-    await commentApi("GET", post.slug, { query: "pending" });
-    if (location.pathname === path) showQueue();
-  } catch {
-    if (location.pathname === path && new URLSearchParams(location.search).has("review")) reviewUnavailable();
-  }
+    ({ author } = await commentApi("GET", post.slug, { query: "pending" }));
+  } catch {}
+  if (location.pathname !== path) return;
+  if (author) showQueue();
+  else if (new URLSearchParams(location.search).has("review")) reviewUnavailable();
 }
 
 export async function showWall(sheet) {
@@ -171,7 +211,11 @@ export async function showWall(sheet) {
     }
     if (pageNav) underline(pageNav);
   } catch {
-    list.replaceChildren(el("p", "wall-empty", "The wall couldn't be reached."));
+    const retry = el("button", "tool", "Try again");
+    retry.type = "button";
+    retry.onclick = () => showWall(sheet);
+    list.replaceChildren(el("p", "wall-empty", "The wall couldn't be reached. "));
+    list.firstChild.append(retry);
   }
   if (author) showQueue();
   else if (new URLSearchParams(location.search).has("review")) reviewUnavailable();
@@ -201,6 +245,8 @@ function doodlePreview(item) {
   const w = 248;
   const k = Math.min(w / (x1 - x0 + 2 * pad), 2);
   const c = document.createElement("canvas");
+  c.setAttribute("role", "img");
+  c.setAttribute("aria-label", item.name ? `Doodle by ${item.name}` : "Doodle");
   c.width = w * 2;
   c.height = Math.ceil(Math.min((y1 - y0 + 2 * pad) * k, 320) * 2);
   const ctx = c.getContext("2d");
@@ -263,9 +309,17 @@ async function showQueue() {
       try {
         const data = await wallApi("POST", { sub: "/sheets" });
         location.assign(`/wall/?sheet=${data.sheets}`);
-      } catch (error) { add.textContent = error.message; add.disabled = false; }
+      } catch (error) { add.disabled = false; failed(add, error); }
     };
     reviewNav.append(add);
+  }
+  // What went wrong goes beside the button; its label keeps saying what it does.
+  function failed(b, error) {
+    const where = b.closest(".wall-item") ?? b.parentElement;
+    where.querySelector(".wall-error")?.remove();
+    const p = el("p", "draft-error wall-error", error.message);
+    p.setAttribute("role", "alert");
+    where.append(p);
   }
   const sheetPicker = (selected) => {
     const select = el("select");
@@ -277,10 +331,22 @@ async function showQueue() {
     }
     return select;
   };
-  const act = (label, run) => {
+  // A destructive action asks twice: the first click arms it for 3s.
+  const act = (label, run, confirm) => {
     const b = el("button", null, label);
+    b.type = "button";
+    let armed = 0;
     b.onclick = async () => {
+      if (confirm && !armed) {
+        b.textContent = confirm;
+        armed = setTimeout(() => { armed = 0; b.textContent = label; }, 3000);
+        return;
+      }
+      clearTimeout(armed);
+      armed = 0;
+      b.textContent = label;
       b.disabled = true;
+      b.closest(".wall-item")?.querySelector(".wall-error")?.remove();
       try {
         await run();
         window.dispatchEvent(new Event("wall:refresh"));
@@ -288,7 +354,7 @@ async function showQueue() {
         else showQueue();
       } catch (error) {
         b.disabled = false;
-        b.textContent = error.message;
+        failed(b, error);
       }
     };
     return b;
@@ -308,7 +374,7 @@ async function showQueue() {
     if (item.kind === "doodle") row.append(picker);
     actions.append(
       act("Approve", () => wallApi("POST", { sub: "/approve", query: `id=${encodeURIComponent(item.id)}&sheet=${picker.value}` })),
-      act("Remove", () => wallApi("DELETE", { query: `id=${encodeURIComponent(item.id)}` })),
+      act("Remove", () => wallApi("DELETE", { query: `id=${encodeURIComponent(item.id)}` }), "Click again to remove"),
     );
     row.append(actions);
     panel.append(row);
@@ -326,7 +392,7 @@ async function showQueue() {
     const actions = el("div", "wall-actions");
     actions.append(
       act("Approve", () => commentApi("POST", item.slug, { sub: "/approve", query: `id=${encodeURIComponent(item.id)}` })),
-      act("Remove", () => commentApi("DELETE", item.slug, { query: `id=${encodeURIComponent(item.id)}` })),
+      act("Remove", () => commentApi("DELETE", item.slug, { query: `id=${encodeURIComponent(item.id)}` }), "Click again to remove"),
     );
     row.append(actions);
     panel.append(row);

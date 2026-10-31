@@ -305,7 +305,7 @@ export class Comments {
       return json({ error: "Links aren't allowed in comments." }, 400);
     }
     if (hasProfanity(text) || hasProfanity(name)) {
-      return json({ error: "Let's keep it friendly — try rewording that." }, 400);
+      return json({ error: "Let's keep it friendly. Try rewording that." }, 400);
     }
 
     const ip = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -313,7 +313,7 @@ export class Comments {
     const now = Date.now();
     const lastPost = await this.state.storage.get(ipKey);
     if (lastPost && now - lastPost < COOLDOWN_MS) {
-      return json({ error: "You're commenting too fast — give it a moment." }, 429);
+      return json({ error: "You're commenting too fast. Give it a moment." }, 429);
     }
 
     const count = (await this.state.storage.get("count")) || 0;
@@ -464,7 +464,8 @@ export class Drafts {
     }
     if (url.pathname.endsWith("/annotations")) {
       if (request.method === "GET" && url.searchParams.has("pending")) {
-        if (!author) return json({ error: "Only Brandon can review comments." }, 403);
+        // Not an error: the page asks because it can't read the review cookie.
+        if (!author) return json({ items: [], author: false });
         return this.pendingComments();
       }
       if (request.method === "POST") return this.annotate(request, author);
@@ -488,7 +489,7 @@ export class Drafts {
 
   async pendingComments() {
     const entries = await this.state.storage.list({ prefix: "q:", limit: MAX_PENDING_COMMENTS });
-    return json({ items: [...entries.values()].map(({ ownerHash, ipHash, ...comment }) => comment) });
+    return json({ items: [...entries.values()].map(({ ownerHash, ipHash, ...comment }) => comment), author: true });
   }
 
   async approveComment(id) {
@@ -554,13 +555,13 @@ export class Drafts {
         return json({ error: "Links aren't allowed in comments." }, 400);
       }
       if (hasProfanity(text) || hasProfanity(name)) {
-        return json({ error: "Let's keep it friendly — try rewording that." }, 400);
+        return json({ error: "Let's keep it friendly. Try rewording that." }, 400);
       }
       const ipKey = "ip:" + (request.headers.get("CF-Connecting-IP") || "unknown");
       const now = Date.now();
       const last = await this.state.storage.get(ipKey);
       if (last && now - last < (kind === "comment" ? NOTE_COOLDOWN_MS : HIGHLIGHT_COOLDOWN_MS)) {
-        return json({ error: "Too fast — give it a moment." }, 429);
+        return json({ error: "Too fast. Give it a moment." }, 429);
       }
       await this.state.storage.put(ipKey, now);
     }
@@ -651,6 +652,8 @@ export class Wall {
   }
 
   async migrateDoodles() {
+    // Once per object's lifetime; the flag in storage covers restarts.
+    if (this.migrated) return;
     await this.state.storage.transaction(async (txn) => {
       if (await txn.get("wall-only:v1")) return;
       const approved = await txn.list({ prefix: "d:" });
@@ -673,6 +676,7 @@ export class Wall {
       }
       await txn.put("wall-only:v1", true);
     });
+    this.migrated = true;
   }
 
   async fetch(request) {
@@ -816,7 +820,7 @@ export class Wall {
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const rk = `rl:${await sha256(ip)}`;
       const last = await this.state.storage.get(rk);
-      if (last && Date.now() - last < WALL_COOLDOWN_MS) return json({ error: "One at a time — try again in a moment." }, 429);
+      if (last && Date.now() - last < WALL_COOLDOWN_MS) return json({ error: "One at a time. Try again in a moment." }, 429);
       await this.state.storage.put(rk, Date.now());
     }
     const pending = await this.state.storage.list({ prefix: "p:", limit: MAX_PENDING + 1 });

@@ -4,8 +4,18 @@
 
 import { rng } from "./hand.js";
 
-const face = new FontFace("Graphite", 'url("/fonts/BrandonPencilGraphite-Regular.woff2")');
-const ready = face.load().then((f) => self.fonts.add(f));
+// Fetched on the first page that actually needs drawing, not at startup: it
+// would compete with the plain face the page is waiting on, and a page whose
+// ink is already cached never needs it.
+let ready = null;
+const loadFace = () =>
+  (ready ??= new FontFace("Graphite", 'url("/fonts/BrandonPencilGraphite-Regular.woff2")')
+    .load()
+    .then((f) => self.fonts.add(f))
+    .catch((err) => {
+      ready = null;
+      throw err;
+    }));
 
 let queue = Promise.resolve();
 self.onmessage = ({ data }) => {
@@ -24,7 +34,7 @@ const sketch = (src) => {
 };
 
 async function draw({ id, w, h, scale, words, marks = [], marker, images = [], seed = 1, keep = false }) {
-  const bitmaps = await Promise.all([ready, ...images.map((i) => sketch(i.src))]);
+  const bitmaps = await Promise.all([loadFace(), ...images.map((i) => sketch(i.src))]);
   const canvas = new OffscreenCanvas(Math.ceil(w * scale), Math.ceil(h * scale));
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.scale(scale, scale);

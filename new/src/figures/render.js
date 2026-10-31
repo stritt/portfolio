@@ -112,6 +112,8 @@ export default function render(pen, { w, h, narrow }) {
     hotspots,
     on(kind, id, state) {
       for (const s of stages) state.springs[s.id] ??= { v: 0, goal: 0, rate: 8 };
+      // A tap lifts one layer and lets the last one settle back.
+      if (kind === "press") for (const s of stages) state.springs[s.id].goal = 0;
       if (kind === "enter" || kind === "press") state.springs[id].goal = 1;
       if (kind === "leave") state.springs[id].goal = 0;
     },

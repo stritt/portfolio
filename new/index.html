@@ -21,7 +21,21 @@
       {"@context":"https://schema.org","@type":"ProfilePage","@id":"https://burcs.dev/#profile","url":"https://burcs.dev/","name":"Brandon Strittmatter","mainEntity":{"@type":"Person","@id":"https://burcs.dev/#brandon","name":"Brandon Strittmatter","url":"https://burcs.dev/","jobTitle":"Head of Experience & Design","worksFor":{"@type":"Organization","name":"Cloudflare","url":"https://www.cloudflare.com/"},"email":"mailto:hello@burcs.dev","sameAs":["https://x.com/burcs"]}}
     </script>
     <link rel="next" href="/projects/" vite-ignore />
+    <link rel="alternate" type="application/rss+xml" title="burcs.dev" href="/rss.xml" vite-ignore />
     <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!-- The theme before first paint, the same way main.js picks it, so a
+         dark desk doesn't flash light on every load. And if the font or the
+         scripts are slow to arrive, show the page anyway after 3s. -->
+    <script>
+      setTimeout(() => document.documentElement.classList.add("ready"), 3000);
+      try {
+        const t = new URLSearchParams(location.search).get("theme") || JSON.parse(localStorage.getItem("scene") || "{}").theme;
+        document.documentElement.dataset.theme = ["light", "dark"].includes(t) ? t : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      } catch {}
+    </script>
+    <noscript><style>.sheet { opacity: 1; }</style></noscript>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -68,7 +82,7 @@
           </li>
         </ul>
 
-        <a class="turn" href="/projects/" aria-label="Things I'm tinkering with">→</a>
+        <a class="turn" href="/projects/" aria-label="Things I’m tinkering with">→</a>
 
         <nav class="tools" aria-label="Write on this page">
           <a class="tool" href="/wall/?doodle" data-reload>doodle</a>

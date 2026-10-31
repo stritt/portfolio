@@ -240,7 +240,7 @@ async function mountFigure(el, { paper, sheet, redraw, data }) {
   let shown = false;
   let raf = 0;
   let lastNow = 0;
-  const state = { hover: null, springs: {}, events: [], now: 0 };
+  const state = { hover: null, springs: {}, events: [], now: 0, get reduced() { return reduced.matches; } };
   let fallback = null;
   let pos = null;
 
@@ -428,7 +428,7 @@ async function mountFigure(el, { paper, sheet, redraw, data }) {
     let moving = false;
     for (const s of Object.values(state.springs)) {
       const d = s.goal - s.v;
-      if (Math.abs(d) < 0.002) s.v = s.goal;
+      if (Math.abs(d) < 0.002 || reduced.matches) s.v = s.goal;
       else {
         s.v += d * (1 - Math.exp(-dt * (s.rate ?? 10)));
         moving = true;
@@ -491,9 +491,10 @@ async function mountFigure(el, { paper, sheet, redraw, data }) {
         built.on?.("leave", h.id, state);
         wake();
       };
-      b.addEventListener("pointerenter", enter);
-      b.addEventListener("pointerleave", leave);
-      b.addEventListener("focus", enter);
+      // Only a mouse hovers; a tap is a press, and a tap's focus isn't a hover.
+      b.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && enter());
+      b.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && leave());
+      b.addEventListener("focus", () => b.matches(":focus-visible") && enter());
       b.addEventListener("blur", leave);
       b.addEventListener("click", () => {
         if (h.id === "again") return play();
@@ -677,5 +678,12 @@ export function startFigures({ paper, sheet, redraw }) {
   }
   mountAll();
   window.addEventListener("sheet:swap", mountAll);
-  window.addEventListener("resize", () => live.forEach((f) => f.place()));
+  // Safari fires resize as its toolbar moves; a new width is handled by each
+  // figure's ResizeObserver, so only re-place when the viewport really changes.
+  let placedWidth = innerWidth;
+  window.addEventListener("resize", () => {
+    if (innerWidth === placedWidth) return;
+    placedWidth = innerWidth;
+    live.forEach((f) => f.place());
+  });
 }

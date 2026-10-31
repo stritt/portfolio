@@ -9,7 +9,9 @@
     "binding": "ASSETS",
     // Pages live at /notes/slug/ — the paper's page turns and history use
     // the trailing slash, so a bare /notes/slug redirects there.
-    "html_handling": "auto-trailing-slash"
+    "html_handling": "auto-trailing-slash",
+    // Anything else gets new/404.html, on paper like the rest.
+    "not_found_handling": "404-page"
   },
   "ratelimits": [
     {
