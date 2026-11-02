@@ -91,7 +91,7 @@ function makePen(seed) {
       const dur = o.dur ?? 0.08 + len / (SPEED * speed);
       // Lighter as the pencil lands and lifts.
       const pr = (s) => (taper ? press * (0.6 + 0.4 * Math.sin(Math.PI * Math.min(1, Math.max(0, s / len)))) : press);
-      return add({ kind: "line", p, cum, len, pr, dur, start: o.start }, o);
+      return add({ kind: "line", p, cum, len, pr, dur, start: o.start, soft: o.soft }, o);
     },
     // A box in two strokes, overshooting its corners a hair.
     rect(x, y, w, h, o = {}) {
@@ -341,6 +341,24 @@ async function mountFigure(el, { paper, sheet, redraw, data }) {
   function drawLine(ctx, m, from, to) {
     const a = from * m.len;
     const b = to * m.len;
+    // Shading is laid as a plain faint line: hundreds of stamped strokes
+    // filling an area cost seconds, and under the paper's grain they read
+    // the same.
+    if (m.soft) {
+      ctx.save();
+      ctx.strokeStyle = INK;
+      ctx.lineCap = "round";
+      ctx.lineWidth = 0.7 + 0.8 * m.pr(m.len / 2);
+      ctx.globalAlpha = 0.18 + 0.35 * m.pr(m.len / 2);
+      ctx.beginPath();
+      let i = 1;
+      while (i < m.p.length && m.cum[i] < a) i++;
+      ctx.moveTo(...at(m, a, i));
+      for (; i < m.p.length && m.cum[i - 1] < b; i++) ctx.lineTo(...at(m, Math.min(b, m.cum[i]), i));
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
     const r = rng(((m.start * 1000) | 0) + Math.round(a * 10));
     let i = 1;
     while (i < m.p.length && m.cum[i] < a) i++;

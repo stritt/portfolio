@@ -154,16 +154,19 @@ button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
 /* A long title wraps onto the next rule; the right-hand side never splits. */
 .head > :last-child:not(:first-child) { white-space: nowrap; margin-left: auto; }
 
-/* Two margin doodles on the top rule. Their hit areas extend into the empty
-   space around the line without changing the measured height of the sheet. */
+/* Two doodles scrawled on the desk itself, top right, above the sheet:
+   graphite on plaster, chalk on slate. main.js puts them on every page. */
 .scene-controls {
   position: absolute;
-  right: -8px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: calc(var(--top-gap) / 2 - 21px);
+  right: max(4px, calc(var(--gutter) / 2 - 8px));
   display: flex;
   align-items: center;
+  gap: 2px;
+  z-index: 1;
+  --desk-ink: rgb(46 47 53 / 0.5);
 }
+html[data-theme="dark"] .scene-controls { --desk-ink: rgb(236 232 222 / 0.5); }
 .scene-control {
   display: grid;
   place-items: center;
@@ -172,9 +175,12 @@ button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
   padding: 7px;
   border: 0;
   background: none;
-  color: var(--ink);
+  color: var(--desk-ink);
   cursor: pointer;
+  transition: color 150ms;
 }
+.scene-control:first-child { transform: rotate(-9deg); }
+.scene-control:last-child { transform: rotate(7deg) translateY(3px); }
 .scene-control .icon {
   display: block;
   width: 28px;
@@ -188,9 +194,11 @@ button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: no
 .icon-moon { --icon-image: url("/icons/moon-b2637829.webp"); }
 .icon-sun { --icon-image: url("/icons/sun-5712f2cb.webp"); }
 .scene-control .icon-window { width: 24px; height: 24px; }
-.scene-control:focus-visible { color: var(--pen); }
+.scene-control:focus-visible { color: var(--ink); }
+html[data-theme="dark"] .scene-control:focus-visible { color: #ece8de; }
 @media (hover: hover) and (pointer: fine) {
-  .scene-control:hover { color: var(--pen); }
+  .scene-control:hover { color: var(--ink); }
+  html[data-theme="dark"] .scene-control:hover { color: #ece8de; }
 }
 .scene-control:focus-visible { outline: 1px dashed currentColor; outline-offset: -4px; }
 .scene-theme .icon-sun,

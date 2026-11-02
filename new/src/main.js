@@ -93,9 +93,25 @@ const dayNow = () => {
 const bgName = () => scene.bg ?? (isDark() ? "slate" : "plaster");
 const lightName = () => scene.light;
 
+// The lighting and theme doodles, drawn on the desk above the sheet so
+// they're there on every page, not only the first.
+const controls = document.createElement("div");
+controls.className = "scene-controls";
+controls.setAttribute("role", "group");
+controls.setAttribute("aria-label", "Appearance");
+controls.innerHTML = `
+  <button type="button" class="scene-control" data-scene-control="light" aria-label="Change lighting" title="Change lighting">
+    <span class="icon icon-window" aria-hidden="true"></span>
+  </button>
+  <button type="button" class="scene-control scene-theme" data-scene-control="theme" aria-label="Switch to dark background" title="Switch to dark background">
+    <span class="icon icon-moon" aria-hidden="true"></span>
+    <span class="icon icon-sun" aria-hidden="true"></span>
+  </button>`;
+(sheet.closest(".desk") ?? document.body).prepend(controls);
+
 function syncSceneControls() {
-  const theme = sheet.querySelector('[data-scene-control="theme"]');
-  const light = sheet.querySelector('[data-scene-control="light"]');
+  const theme = controls.querySelector('[data-scene-control="theme"]');
+  const light = controls.querySelector('[data-scene-control="light"]');
   if (theme) {
     const label = `Switch to ${isDark() ? "light" : "dark"} background`;
     theme.setAttribute("aria-label", label);
@@ -117,9 +133,9 @@ systemTheme.addEventListener("change", () => {
   dirty = true;
 });
 
-sheet.addEventListener("click", (e) => {
+controls.addEventListener("click", (e) => {
   const button = e.target.closest?.("button[data-scene-control]");
-  if (!button || !sheet.contains(button)) return;
+  if (!button) return;
   if (button.dataset.sceneControl === "theme") {
     scene.theme = isDark() ? "light" : "dark";
     preferredTheme = scene.theme;
@@ -211,7 +227,7 @@ function layout() {
     "--pad-b": `${(Math.ceil((u * 0.45) / L) + 1) * L}px`,
     "--H-min": `${(W * 11) / 8.5}px`,
     "--gutter": `${gutter}px`,
-    "--top-gap": `${vw < 640 ? 12 : 44}px`,
+    "--top-gap": `${vw < 640 ? 40 : 44}px`,
     "--gap": `${Math.max(1, L * 0.04)}px`,
     "--stack-gap": `${STACK_GAP}px`,
   };

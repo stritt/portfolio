@@ -209,7 +209,7 @@ float blindsLight(vec2 p) {
               * smoothstep(0.0, 0.08, w.y) * smoothstep(0.0, 0.08, 1.4 - w.y);
   float slat = fract(w.y / 0.055 + 0.02 * sin(uTime * 0.07));
   float lit = smoothstep(0.08, 0.3, slat) * (1.0 - smoothstep(0.62, 0.86, slat));
-  return frame * mix(0.12, 1.0, lit);
+  return frame * mix(0.5, 1.0, lit);
 }
 
 // Moonlight: a cool, faint window from the other side of the room.
@@ -579,13 +579,13 @@ void main() {
     // Golden hour: low warm sun stretched across the desk, blue in the shade.
     L = normalize(vec3(-0.9 + m.x * 0.4, -0.32 + m.y * 0.4, 0.4));
     sun = goldenLight(p);
-    light = vec3(0.88, 0.9, 0.97) * 0.85 * amb + vec3(1.0, 0.76, 0.48) * sun * 0.5;
+    light = vec3(0.88, 0.9, 0.97) * 0.9 * amb + vec3(1.0, 0.76, 0.48) * sun * 0.24;
     shadowK = 1.25;
   } else if (uLight == 3) {
     // Blinds: midday through venetian slats.
     L = normalize(vec3(sunX + 0.05 + m.x * 0.5, -0.8 + m.y * 0.5, 0.6));
     sun = blindsLight(p);
-    light = vec3(1.0, 0.99, 0.98) * 0.92 * amb + sunCol * sun * 0.32;
+    light = vec3(1.0, 0.99, 0.98) * 0.95 * amb + sunCol * sun * 0.15;
   } else if (uLight == 4) {
     // Desk lamp in a dim room: a warm pool from above the page.
     L = normalize(vec3(m.x * 0.6, -0.35 + m.y * 0.6, 0.85));
@@ -611,7 +611,7 @@ void main() {
     // Window: midday sun through a four-light window, leaves outside.
     L = normalize(vec3(sunX + m.x * 0.5, -0.8 + m.y * 0.5, 0.62));
     sun = windowLight(p);
-    light = vec3(1.0, 0.995, 0.985) * amb + sunCol * sun * 0.28;
+    light = vec3(1.0, 0.995, 0.985) * amb + sunCol * sun * 0.13;
   }
 
   vec3 col = desk(p) * light;
