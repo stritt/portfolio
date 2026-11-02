@@ -7,6 +7,13 @@
     <language>en</language>
     <atom:link href="https://burcs.dev/rss.xml" rel="self" type="application/rss+xml"/>
     <item>
+      <title>Nobody knows anything…</title>
+      <link>https://burcs.dev/notes/nobody-knows-anything/</link>
+      <guid>https://burcs.dev/notes/nobody-knows-anything/</guid>
+      <pubDate>Mon, 02 Nov 2026 00:00:00 GMT</pubDate>
+      <description>Every week there’s a new way you’re supposed to work with agents. You’re not behind: pick a model, prompt it, and ship.</description>
+    </item>
+    <item>
       <title>Interfaces are cattle, not pets…</title>
       <link>https://burcs.dev/notes/interfaces-are-cattle/</link>
       <guid>https://burcs.dev/notes/interfaces-are-cattle/</guid>

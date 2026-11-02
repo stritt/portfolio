@@ -5,6 +5,7 @@
 The pages below contain readable HTML text; the pencil and paper effects are decorative.
 
 - [Home](https://burcs.dev/): current work, background, and contact links.
+- [Nobody knows anything…](https://burcs.dev/notes/nobody-knows-anything/): an essay about agent-tooling hype and FOMO, and why you should just prompt the latest model and ship, published November 2, 2026.
 - [Interfaces are cattle, not pets…](https://burcs.dev/notes/interfaces-are-cattle/): an essay about disposable, generated interfaces and saved dashboards, published October 20, 2026.
 - [Things I'm tinkering with](https://burcs.dev/projects/): side projects and their links.
 - [The wall](https://burcs.dev/wall/): visitor notes and doodles.
