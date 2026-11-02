@@ -43,6 +43,7 @@ export default defineConfig({
         wall: page("wall/index.html"),
         "interfaces-are-cattle": page("notes/interfaces-are-cattle/index.html"),
         "how-the-web-works": page("notes/how-the-web-works/index.html"),
+        days: page("days/index.html"),
         "404": page("404.html"),
       },
     },

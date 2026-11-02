@@ -27,10 +27,11 @@ function measure(el, { asc, desc }) {
   const range = document.createRange();
   // Notes written at an angle are measured separately, below.
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
-    // Visitors' writing (.guest) and the "Save doodle" button, which comes
-    // and goes, are shown as they are, never inked as Brandon's. Figures
-    // draw themselves (figure.js).
-    acceptNode: (n) => (n.parentElement.closest('.turn, .guest, .diagram, [data-tool="pin"]') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    // Visitors' writing (.guest), the "Save doodle" button, which comes
+    // and goes, and writing that changes as a reader types (.live) are shown
+    // as they are, never inked as Brandon's. Figures draw themselves
+    // (figure.js).
+    acceptNode: (n) => (n.parentElement.closest('.turn, .guest, .live, .diagram, [data-tool="pin"]') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
   });
 
   // Word by word, each at the spot the plain cut put it: Graphite picks

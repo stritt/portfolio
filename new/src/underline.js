@@ -8,7 +8,7 @@ import { rng } from "./hand.js";
 
 const H = 8;   // the line's box, CSS px tall
 
-function line(w, color, rnd) {
+export function pencilLine(w, color, rnd) {
   const x0 = 1 + rnd() * 2;
   const x1 = w - 1 - rnd() * 2;
   const y0 = H / 2 + (rnd() - 0.5) * 1.6;
@@ -45,7 +45,7 @@ export function underline(root) {
     if (!rect) continue;
     let seed = 2166136261;
     for (const c of a.getAttribute("href") + a.textContent) seed = Math.imul(seed ^ c.charCodeAt(0), 16777619);
-    lines.push([a, line(Math.max(8, Math.round(rect.width)), getComputedStyle(a).color, rng(seed >>> 0))]);
+    lines.push([a, pencilLine(Math.max(8, Math.round(rect.width)), getComputedStyle(a).color, rng(seed >>> 0))]);
   }
   for (const [a, svg] of lines) a.style.setProperty("--line", `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 }

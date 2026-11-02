@@ -562,10 +562,19 @@ async function mountFigure(el, { paper, sheet, redraw, data }) {
     compose();
   });
   ro.observe(el);
+  // New data: rub it out and draw it again, if it's been drawn already.
+  const update = () => {
+    build();
+    if (!built) return;
+    if (shown) play();
+    else compose();
+  };
+  el.addEventListener("figure:update", update);
   compose();
 
   return {
     stop() {
+      el.removeEventListener("figure:update", update);
       io.disconnect();
       ro.disconnect();
       cancelAnimationFrame(raf);
@@ -661,7 +670,8 @@ export function startFigures({ paper, sheet, redraw }) {
     if (!els.length) return;
     const v = await visit();
     if (mine !== gen) return;
-    const mounted = await Promise.all(els.map((el) => mountFigure(el, { paper, sheet, redraw, data: () => v })));
+    // A page can hand a figure its own data (el.figData; see days.js).
+    const mounted = await Promise.all(els.map((el) => mountFigure(el, { paper, sheet, redraw, data: () => el.figData ?? v })));
     if (mine !== gen) return mounted.forEach((f) => f?.stop());
     live = mounted.filter(Boolean);
     near = new IntersectionObserver(

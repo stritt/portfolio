@@ -5,6 +5,7 @@ import { doodleParam, startDoodle } from "./doodle.js";
 import { showWall, prepareReview, showArticleReview } from "./wall.js";
 import { underline } from "./underline.js";
 import { startFigures } from "./figure.js";
+import { startDays } from "./days.js";
 
 const root = document.documentElement;
 const sheet = document.getElementById("sheet");
@@ -629,6 +630,7 @@ function swap(page, path) {
 
 // The wall's notes are filled in after the sheet is laid out.
 const wallPage = () => {
+  if (shownPath === "/days/") startDays(sheet);
   if (shownPath.startsWith("/notes/")) showArticleReview();
   if (shownPath !== "/wall/") return;
   showWall(sheet).then(() => window.dispatchEvent(new Event("sheet:changed")));

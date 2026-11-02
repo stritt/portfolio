@@ -69,6 +69,10 @@ Internal links turn the page in place (`main.js` intercepts them). Add `data-rel
 - A note longer than one sheet is `.sheet.stacked` with one `<section class="page">` per sheet, each starting with a `.head` (`<span></span><span>2 of 3</span>`).
 - Published notes need: canonical, description, OG/Twitter tags with a hashed image in `public/social/`, `BlogPosting` JSON-LD, a homepage `.entries` line, a sitemap entry and an llms.txt line. Drafts get `<meta name="robots" content="noindex">` and none of those.
 
+## Days (`/days/`)
+
+A worksheet, not a note: the reader fills in blanks (`.blank` inputs and selects, underlined by hand in `days.js`) and the answer is written and drawn underneath. Text that changes as they type is `.live`: the ink worker skips it, so it stays in the plain cut, like visitors' writing. Static copy is inked as usual; `days.js` fires `sheet:changed` only when inked text actually moved. The arithmetic is `src/days/model.js` (SSA period life table); the drawings are `figures/days-grid.js` and `figures/days-curve.js`, fed through `el.figData` and redrawn on a `figure:update` event.
+
 ## Figures
 
 Use a figure when a post needs a diagram the reader can watch being drawn or press. Use `<figure class="sketch">` + `<img>` for a static pencil scan (`public/sketches/`).

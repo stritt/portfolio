@@ -686,6 +686,47 @@ body:has(.pin-note) .doodle-bar { display: none; }
 .sheet .doodle-handle:active { cursor: grabbing; }
 .sheet .doodle-handle:focus-visible { outline: 2px solid #5a5146; outline-offset: 2px; }
 
+/* /days/: blanks to fill in, written into the sentence on its rule with a
+   pencil line under each (days.js), and the answer, which changes as they
+   type and so stays in the plain cut instead of being inked (.live). */
+.sheet .live {
+  -webkit-text-fill-color: currentColor;
+}
+.sheet.inked .live strong {
+  background: linear-gradient(var(--marker), var(--marker)) no-repeat 0 72% / 100% 0.62em;
+}
+.sheet .blank {
+  box-sizing: content-box;
+  width: 2.2ch;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: var(--line, none) no-repeat 0 calc(var(--asc) * 1em + 0.2em - 4px) / 100% 8px;
+  color: var(--ink);
+  font: inherit;
+  line-height: inherit;
+  text-align: center;
+  vertical-align: baseline;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  cursor: pointer;
+}
+.sheet .blank::-webkit-inner-spin-button,
+.sheet .blank::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.sheet input.blank { cursor: text; }
+.sheet .blank-name { width: 4.5em; }
+.sheet .blank::placeholder { color: var(--ink-soft); opacity: 1; -webkit-text-fill-color: var(--ink-soft); }
+.sheet .blank:focus-visible { outline: 1px dashed currentColor; outline-offset: 2px; }
+.sheet .days-form { margin-top: var(--L); }
+.sheet .days-form + p { margin-top: calc(2 * var(--L)); }
+.sheet #stats { margin-top: var(--L); }
+.sheet .days-form p + p,
+.sheet #headline + p,
+.sheet #grid-key + #stats { margin-top: 0; }
+.sheet #stats + p { margin-top: var(--L); }
+
 /* What visitors write, in Brandon's plain Pencil as it is rather than inked
    in Graphite (see wall.js), and always signed. */
 .guest {

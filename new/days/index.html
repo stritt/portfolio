@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Days — Brandon Strittmatter</title>
+    <meta name="description" content="Put in your age and theirs. Using the SSA life tables, this works out how many days you have left with your partner, your kid or your parent, and how few of them are still ahead." />
+    <link rel="canonical" href="https://burcs.dev/days/" />
+    <meta property="og:title" content="Days" />
+    <meta property="og:description" content="Most of the time you’ll ever spend with someone, you’ve already spent. Two ages is all it takes to see how much is left." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://burcs.dev/days/" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!-- The theme before first paint, the same way main.js picks it, so a
+         dark desk doesn't flash light on every load. And if the font or the
+         scripts are slow to arrive, show the page anyway after 3s. -->
+    <script>
+      setTimeout(() => document.documentElement.classList.add("ready"), 3000);
+      try {
+        const t = new URLSearchParams(location.search).get("theme") || JSON.parse(localStorage.getItem("scene") || "{}").theme;
+        document.documentElement.dataset.theme = ["light", "dark"].includes(t) ? t : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      } catch {}
+    </script>
+    <noscript><style>.sheet { opacity: 1; }</style></noscript>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main class="desk">
+      <!-- A worksheet: the reader fills in the blanks and the answer is
+           written and drawn underneath (src/days.js). What changes as they
+           type is .live, kept in the plain cut rather than inked. -->
+      <article class="sheet days" id="sheet">
+        <div class="head">
+          <h1><a href="/"><span aria-hidden="true">← </span>Days</a></h1>
+        </div>
+
+        <p>
+          Most of the time you’ll ever spend with someone, you’ve already
+          spent. Fill in the blanks to see how much is left.
+        </p>
+
+        <form class="days-form" id="days-form" novalidate>
+          <p>
+            I’m <input class="blank live" id="you-age" type="number" inputmode="numeric" min="0" max="119" value="34" aria-label="Your age" />,
+            a <select class="blank live" id="you-sex" aria-label="You, for the life table"><option value="male">man</option><option value="female">woman</option></select>.
+          </p>
+          <p>
+            This is my <select class="blank live" id="rel" aria-label="Who they are to you"></select>,
+            <input class="blank blank-name live" id="name" type="text" maxlength="24" autocomplete="off" data-1p-ignore data-lpignore="true" aria-label="Their name" placeholder="Dad" />,
+            who’s <input class="blank live" id="age" type="number" inputmode="numeric" min="0" max="119" value="66" aria-label="Their age" />,
+            a <select class="blank live" id="sex" aria-label="Them, for the life table"><option value="male">man</option><option value="female">woman</option></select>.
+          </p>
+          <p id="since-line" hidden>
+            We’ve <span class="live" id="since-verb">known each other</span> for
+            <input class="blank live" id="since" type="number" inputmode="numeric" min="0" max="119" value="10" aria-label="Years you’ve known each other" />
+            years.
+          </p>
+          <p>
+            <span class="live" id="freq-lead">We’re in the same place</span>
+            <select class="blank live" id="freq" aria-label="How often you’re together"></select>.
+          </p>
+        </form>
+
+        <p class="live" id="headline" aria-live="polite"></p>
+        <p>
+          That counts every day you’ll be in the same place, the ones you
+          sleep through included.
+        </p>
+
+        <figure class="diagram" data-fig="days-grid" id="days-grid" style="--rules: 7; --rules-narrow: 8"
+                aria-label="A dot for every stretch of time together: the ones behind you drawn faint, the ones still ahead drawn dark and ringed."></figure>
+
+        <p class="live" id="grid-key"></p>
+        <ul class="live" id="stats"></ul>
+
+        <p>In hours a day, across their whole life, it looks like this:</p>
+
+        <figure class="diagram" data-fig="days-curve" id="days-curve" style="--rules: 7; --rules-narrow: 7"
+                aria-label="Hours a day together across their life: steps down at school and when someone moves out, a line for now, and what’s left shaded after it."></figure>
+
+        <h2>How it’s worked out</h2>
+        <p>
+          Mortality comes from the Social Security Administration’s life
+          table, the chance of dying within a year at every age. It’s an
+          average, so it knows nothing about medical progress or anyone’s
+          health. The table comes in two columns, which is why it asks man
+          or woman.
+        </p>
+        <p>
+          You only get a year together if you’re both alive for it, so the
+          two survival curves are multiplied, not compared. Each year ahead
+          counts the days you’d be in the same place, weighted by the
+          chance you both make it.
+        </p>
+        <p>
+          Days aren’t equal, so the drawing is in hours. A kid at home
+          counts as 6 hours a day until school at 5, 4 until 13, then 3.
+          Two adults at home count as 4, and a visit counts as 6. Rough
+          numbers, from the American Time Use Survey.
+        </p>
+        <p class="live" id="expectancy"></p>
+        <p>
+          It’s an average with a name on it, not a forecast. Nothing you
+          type leaves this page. The idea is
+          <a href="https://waitbutwhy.com/2015/12/the-tail-end.html">Tim Urban’s</a>.
+        </p>
+      </article>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
