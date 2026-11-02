@@ -21,7 +21,7 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 const FONT = '"Brandon Pencil", cursive';
 
 // ---- the pen --------------------------------------------------------------
-// A scene is a function (pen, box) → { hotspots?, offsets?, overlay?, ... }.
+// A scene is a function (pen, box) → { hotspots?, offsets?, overlay?, still?, ... }.
 // It calls the pen's drawing methods in the order a hand would make them;
 // each mark starts when the last is nearly done (or at pen.at(t)).
 
@@ -298,7 +298,8 @@ async function mountFigure(el, { paper, sheet, redraw, data }) {
       el.append(out);
     }
     hotspots();
-    reset(shown ? built.end : 0);
+    // A still drawing is simply there, as if drawn before the page was.
+    reset(shown || built.still ? built.end : 0);
   }
 
   function textBox(m) {
@@ -458,7 +459,7 @@ async function mountFigure(el, { paper, sheet, redraw, data }) {
 
   function play() {
     shown = true;
-    if (reduced.matches) {
+    if (reduced.matches || built.still) {
       reset(built.end);
       compose();
       return;

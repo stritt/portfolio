@@ -41,7 +41,10 @@ export async function wallApi(method, { sub = "", query = "", body } = {}) {
 
 // The current published post's anchored comments live in Drafts, while wall
 // notes and doodles live in Wall. Both arrive in this same approval panel.
-const reviewPosts = [{ slug: "notes/interfaces-are-cattle", title: "Interfaces are cattle, not pets…" }];
+const reviewPosts = [
+  { slug: "notes/nobody-knows-anything", title: "Nobody knows anything…" },
+  { slug: "notes/interfaces-are-cattle", title: "Interfaces are cattle, not pets…" },
+];
 async function commentApi(method, slug, { sub = "", query = "" } = {}) {
   const key = authorKey();
   const params = `slug=${encodeURIComponent(slug)}${query ? `&${query}` : ""}`;

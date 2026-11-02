@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Nobody knows anything… — Brandon Strittmatter</title>
+    <meta name="description" content="Every week there’s a new way you’re supposed to work with agents. You’re not behind: pick a model, prompt it, and ship." />
+    <link rel="canonical" href="https://burcs.dev/notes/nobody-knows-anything/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="burcs.dev" />
+    <meta property="og:title" content="Nobody knows anything…" />
+    <meta property="og:description" content="Every week there’s a new way you’re supposed to work with agents. You’re not behind: pick a model, prompt it, and ship." />
+    <meta property="og:url" content="https://burcs.dev/notes/nobody-knows-anything/" />
+    <meta property="og:image" content="https://burcs.dev/social/nobody-knows-anything-1c918e81.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The article title and a pencil sketch of the midwit bell curve on lined paper, lit by window blinds." />
+    <meta property="article:published_time" content="2026-11-02" />
+    <meta property="article:author" content="https://burcs.dev/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:creator" content="@burcs" />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"BlogPosting","@id":"https://burcs.dev/notes/nobody-knows-anything/#article","mainEntityOfPage":"https://burcs.dev/notes/nobody-knows-anything/","headline":"Nobody knows anything…","description":"Every week there’s a new way you’re supposed to work with agents. You’re not behind: pick a model, prompt it, and ship.","datePublished":"2026-11-02","image":"https://burcs.dev/social/nobody-knows-anything-1c918e81.jpg","author":{"@type":"Person","@id":"https://burcs.dev/#brandon","name":"Brandon Strittmatter","url":"https://burcs.dev/"}}
+    </script>
+    <!-- Turning back from the newest note returns home; older notes chain on with rel="next". -->
+    <link rel="prev" href="/" vite-ignore />
+    <link rel="next" href="/notes/interfaces-are-cattle/" vite-ignore />
+    <link rel="alternate" type="application/rss+xml" title="burcs.dev" href="/rss.xml" vite-ignore />
+    <link rel="preload" href="/fonts/BrandonPencil-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!-- The theme before first paint, the same way main.js picks it, so a
+         dark desk doesn't flash light on every load. And if the font or the
+         scripts are slow to arrive, show the page anyway after 3s. -->
+    <script>
+      setTimeout(() => document.documentElement.classList.add("ready"), 3000);
+      try {
+        const t = new URLSearchParams(location.search).get("theme") || JSON.parse(localStorage.getItem("scene") || "{}").theme;
+        document.documentElement.dataset.theme = ["light", "dark"].includes(t) ? t : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      } catch {}
+    </script>
+    <noscript><style>.sheet { opacity: 1; }</style></noscript>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+    <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main class="desk">
+      <!-- The note runs over 4 sheets, stacked down the desk (see .stacked in
+           style.css and stacked() in paper.js). -->
+      <article class="sheet stacked" id="sheet">
+        <section class="page">
+          <div class="head">
+            <h1><a href="/"><span aria-hidden="true">← </span>Nobody knows anything…</a></h1>
+            <time datetime="2026-11-02">11.02.26</time>
+          </div>
+
+          <figure class="diagram" data-fig="midwit" style="--rules: 10; --rules-narrow: 10"
+                  aria-label="The midwit meme, sketched in pencil: a bell curve of IQ scores. The low end says just prompt it, the crying middle says you need MCPs, skills, sub-agents, workflows and loops, and the hooded high end says just prompt it."></figure>
+
+          <p>
+            Every time I open up X I see this new way you should be
+            interacting with agents. At first it was prompt engineering,
+            then it was MCPs, skills, sub-agents, workflows, loops, the
+            list goes on… Not to mention the tooling on top of it. Are
+            you token-maxxing yet? You aren’t herdr-ing your
+            plannotators? You will fall behind on your orb count if you
+            don’t hurry up and ralph wiggum your agent lifecycle. What
+            stack are you running? Gstack, pstack, tstack? Get in
+            loser, you’re falling behind!
+          </p>
+
+          <p>
+            All of those things while sounding made up, are sadly very
+            real.
+          </p>
+
+          <p>
+            There’s some FOMO going around too, I see people following,
+            trying to catch up, burning millions upon millions of
+            tokens, and still I never see anything actually shipped. It
+            almost reminds me of performative software engineering, and
+            it’s because we’re all having somewhat of an identity
+            crisis.
+          </p>
+        </section>
+        <section class="page">
+          <div class="head">
+            <span></span>
+            <span>2 of 4</span>
+          </div>
+
+          <p>
+            There are a few different things happening all at once.
+            First, a lot of engineers tied their identity to what they
+            did, heck most people do this. It’s the customary greeting
+            “Hello who are you and what do you do?” It used to be a
+            point of pride to say software engineering, or in fact a lot
+            of times people would dumb it down for the layman: “I make
+            apps” or “I design websites.”
+          </p>
+
+          <p>
+            However, thanks to AI it doesn’t hold the same weight that
+            it used to. Honestly a lot of times you’ll hear a response
+            along the lines of “oh that’s cool I just built an app
+            myself” and then they’ll be using something like Lovable,
+            Base44 or maybe even Replit (nahh who am I kidding)...
+          </p>
+
+          <p>
+            So people need a new way to differentiate themselves: “I
+            burn more tokens than you do, so in fact I am a better
+            engineer”, or “my stack is far more complicated than yours
+            so obviously I both outship and outrank you.”
+          </p>
+
+          <p>
+            Additionally, there is a whole crowd trying to sell into
+            that insecurity. These are modern day charlatans peddling
+            their wares, only instead of snake oil they are selling you
+            on their own personal flavor of ai psychosis, and sadly it’s
+            very contagious. Do not buy into the hype train.
+          </p>
+        </section>
+        <section class="page">
+          <div class="head">
+            <span></span>
+            <span>3 of 4</span>
+          </div>
+
+          <p>
+            Early on in the AI cycle while I was still building
+            Outerbase, the first GPT api was released. Almost
+            immediately, we had other companies trying to sell us on
+            their fine-tuned models. They were going to have the BEST
+            sql querying model out there, specifically for that use
+            case, that outperformed and undercut the competition. I
+            didn’t hold my breath, in fact I just waited and then 4 came
+            out, and you know what it wrote pretty good SQL, and then
+            after that we had reasoning models, and then they just kept
+            getting better.
+          </p>
+
+          <p>
+            The same thing is happening to all of the tooling and
+            workflows around AI, you are better off rawdogging a prompt
+            than spending cycles trying to learn today’s flavor of the
+            week process. The models will just get better.
+          </p>
+
+          <p>
+            As I write this out, Grok Bot is sending me hourly updates
+            of things I’m missing out on (the irony isn’t lost here),
+            Claude code is writing a new tool to review designs, and
+            Cloudflare OS is running through some PRs to help find any
+            issues that I might have missed during a manual review. This
+            may sound a bit antithetical to what I had written already,
+            but there was no extra process or secret sauce involved, I
+            opened up the latest SOTA model, entered a prompt and let it
+            cook.
+          </p>
+        </section>
+        <section class="page">
+          <div class="head">
+            <span></span>
+            <span>4 of 4</span>
+          </div>
+
+          <p>
+            Also you might be asking yourself, why are you writing a
+            tool to review designs? You just said you don’t need all of
+            this tooling. Yes and no, the beauty of this is you get to
+            roll your own processes, you don’t have to buy into someone
+            else’s. Software has never been more personal and easy to
+            ship, so I urge you to just try prompting your favorite
+            model, find any gaps, and from there (if there are any)
+            build what you need. Don’t buy into the hype, the FUD, or
+            the superiority that comes from masses telling you that if
+            you aren’t using $NewTool you’re NGMI.
+          </p>
+
+          <p>
+            So if you feel behind right now don’t worry you aren’t.
+            Every day the game changes, the models get smarter, kingdoms
+            rise and fall, you’re not missing anything. There’s no
+            special tool or workflow preventing you from being a 1000x
+            ai developer. Pick a model, prompt it to build the thing
+            that brings you joy (and heck if for some reason stringing
+            together a bunch of tools does it then so be it), and just
+            let the timeline sort itself out.
+          </p>
+
+          <p>
+            Remember nobody really knows anything…
+          </p>
+
+          <p>
+            Ship and be happy.
+          </p>
+
+          <p class="leave"><a href="?draft" data-reload>Leave a comment →</a></p>
+        </section>
+      </article>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
